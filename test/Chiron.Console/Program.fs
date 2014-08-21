@@ -1,4 +1,5 @@
 ﻿open Chiron
+open Chiron.Operators
 
 // Types
 
@@ -8,7 +9,7 @@ type User =
       Registered: bool }
 
 and Contact =
-    { Email: string }
+    { Email: string option }
 
 // Serialization 
 
@@ -55,7 +56,7 @@ and Contact with
 let example = 
     { Name = "Andrew Cherry"
       Contact = 
-        { Email = "andrew@xyncro.com" }
+        { Email = Some "andrew@xyncro.com" }
       Registered = true }
 
 // Helpers

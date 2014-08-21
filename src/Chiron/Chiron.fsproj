@@ -49,7 +49,9 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
-    <Compile Include="Chiron.fs" />
+    <Compile Include="Core.fs" />
+    <Compile Include="Mapping.fs" />
+    <Compile Include="Serialization.fs" />
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
