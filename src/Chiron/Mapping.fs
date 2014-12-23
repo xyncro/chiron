@@ -160,7 +160,7 @@ module Mapping =
     let inline setJSON k v =
         json {
             do! setPLM (isoJObjectPLens >??> mapPLens k) (toJSON v) }
-
+                    
 
     type Defaults with
 
@@ -183,6 +183,7 @@ module Mapping =
                 match x with
                 | Some a -> do! (fun _ -> Choice1Of2 (), toJSON a)
                 | _ -> do! setM JNull }
+
 
     type Defaults with
 
