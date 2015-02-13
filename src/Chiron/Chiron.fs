@@ -1,6 +1,7 @@
 ﻿module Chiron
 
 open Aether
+open Aether.Operators
 open FParsec
 
 (* Types
@@ -41,6 +42,101 @@ type Json =
         (function | JString x -> Some x
                   | _ -> None), JString
 
+(* Monadic
+
+   A computation expression based interface to Json data, providing
+   lens based access to deeply nested elements of a Json data structure
+   as part of the computation expression state (the monad is a state
+   monad where the state is of type Json). *)
+
+[<AutoOpen>]
+module Monadic =
+
+    type Json<'a> =
+        Json -> JsonResult<'a> * Json
+
+    and JsonResult<'a> =
+        | Value of 'a
+        | Error of string
+
+    (* Builder
+
+       Computation expression (monad) for working with JSON structures in a
+       simple way, including lensing, morphisms, etc. using the Aether
+       library. *)
+
+    type JsonBuilder () =
+
+        member __.Bind (m1, m2) : Json<_> =
+            fun json ->
+                match m1 json with
+                | Value x, json -> m2 x json
+                | Error e, json -> Error e, json
+
+        member __.Combine (m1, m2) : Json<_> =
+            fun json ->
+                match m1 json with
+                | Value (), json -> m2 () json
+                | Error e, json -> Error e, json
+
+        member __.Delay (f) : Json<_> =
+            fun json ->
+                f () json
+
+        member __.Return (x) : Json<_> =
+            fun json -> 
+                Value x, json
+
+        member __.ReturnFrom (f) : Json<_> =
+            f
+
+        member __.Zero () : Json<_> =
+            fun json ->
+                Value (), json
+
+    let json =
+        JsonBuilder ()
+
+    (* Functions
+
+       Computation expression (monadic) functions for working with the Json
+       structure maintained as monadic state. *)
+
+    [<RequireQualifiedAccess>]
+    module Json =
+
+        let succeed x : Json<_> =
+            fun json ->
+                Value x, json
+
+        let fail e : Json<_> =
+            fun json ->
+                Error e, json
+
+        let get l : Json<_> =
+            fun json ->
+                Value (Lens.get l json), json
+
+        let getPartial l : Json<_> =
+            fun json ->
+                Value (Lens.getPartial l json), json
+
+        let set l v : Json<_> =
+            fun json ->
+                Value (), Lens.set l v json
+
+        let setPartial l v : Json<_> =
+            fun json ->
+                Value (), Lens.setPartial l v json
+
+        let map l f : Json<_> =
+            fun json ->
+                Value (), Lens.map l f json
+
+        let mapPartial l f : Json<_> =
+            fun json ->
+                Value (), Lens.mapPartial l f json
+
 (* Parsing *)
 
 [<AutoOpen>]
@@ -55,7 +151,7 @@ module Parsing =
         (int x &&& 15) + (int x >>> 6) * 9
 
     let private hexString h3 h2 h1 h0 =
-        (hexToInt h3) * 4096
+          (hexToInt h3) * 4096
         + (hexToInt h2) * 256
         + (hexToInt h1) * 16
         + (hexToInt h0)
@@ -146,111 +242,83 @@ module Parsing =
     [<RequireQualifiedAccess>]
     module Json =
 
-        let tryParse json =
-            match run jsonP json with
-            | Success (json, _, _) -> Some json
-            | Failure (e, _, _) -> None
+        let internal parseJson s =
+            match run jsonP s with
+            | Success (json, _, _) -> Value json
+            | Failure (e, _, _) -> Error e
+
+        let tryParse =
+               parseJson
+            >> function | Value json -> Some json
+                        | _ -> None
 
         let parse =
-               tryParse
-            >> function | Some json -> json
-                        | _ -> failwith "Failed Parse" 
+               parseJson
+            >> function | Value json -> json
+                        | Error e -> failwith e
+
+        let import s =
+            fun json ->
+                match parseJson s with
+                | Value json -> Value (), json
+                | Error e -> Error e, json
 
 (* Formatting *)
 
 [<AutoOpen>]
 module Formatting =
 
-    let format json =
+    let format _ =
         ()
 
-(* Monadic
 
-   A computation expression based interface to Json data, providing
-   lens based access to deeply nested elements of a Json data structure
-   as part of the computation expression state (the monad is a state
-   monad where the state is of type Json). *)
+
+(* Mapping *)
 
 [<AutoOpen>]
-module Monadic =
+module Mapping =
 
-    type Json<'a> =
-        Json -> Choice<'a, string> * Json
+    (* From JSON *)
 
-    (* Builder
+    type FromJsonDefaults = FromJsonDefaults with
 
-       Computation expression (monad) for working with JSON structures in a
-       simple way, including lensing, morphisms, etc. using the Aether
-       library. *)
+        static member inline FromJson (_: string) =
+            Json.getPartial (idLens <-?> Json.JStringPIso)
 
-    type JsonBuilder () =
+        static member inline FromJson (_: float) =
+            Json.getPartial (idLens <-?> Json.JNumberPIso)
 
-        member __.Bind (m1, m2) : Json<_> =
-            fun json ->
-                match m1 json with
-                | Choice1Of2 x, json -> m2 x json
-                | Choice2Of2 e, json -> Choice2Of2 e, json
+    let inline internal fromJsonWithDefaults (_: ^a, b: ^b) =
+        ((^a or ^b) : (static member FromJson: ^b -> (^b option) Json) b)
 
-        member __.Combine (m1, m2) : Json<_> =
-            fun json ->
-                match m1 json with
-                | Choice1Of2 (), json -> m2 () json
-                | Choice2Of2 e, json -> Choice2Of2 e, json
+    let inline internal fromJson (x: Json) =
+        fst (fromJsonWithDefaults (FromJsonDefaults, Unchecked.defaultof<'a>) x)
 
-        member __.Delay (f) : Json<_> =
-            fun json ->
-                f () json
-
-        member __.Return (x) : Json<_> =
-            fun json -> 
-                Choice1Of2 x, json
-
-        member __.ReturnFrom (f) : Json<_> =
-            f
-
-        member __.Zero () : Json<_> =
-            fun json ->
-                Choice1Of2 (), json
-
-    let json =
-        JsonBuilder ()
-
-    (* Functions
-
-       Computation expression (monadic) functions for working with the Json
-       structure maintained as monadic state. *)
+    (* To JSON *)
 
     [<RequireQualifiedAccess>]
     module Json =
 
-        let internal succeed x : Json<_> =
-            fun json ->
-                Choice1Of2 x, json
+        let inline read key =
+            json {
+                let! json = Json.getPartial (idLens <-?> Json.JObjectPIso >??> mapPLens key)
 
-        let internal fail e : Json<_> =
-            fun json ->
-                Choice2Of2 e, json
+                match json with
+                | Some json ->
+                    match fromJson json with
+                    | Value (Some x) -> return! Json.succeed x
+                    | _ -> return! Json.fail ""
+                | _ ->
+                    return! Json.fail "" }
 
-        let get l : Json<_> =
-            fun json ->
-                Choice1Of2 (Lens.get l json), json
+        let inline readPartial key =
+            json {
+                let! json = Json.getPartial (idLens <-?> Json.JObjectPIso >??> mapPLens key)
 
-        let getPartial l : Json<_> =
-            fun json ->
-                Choice1Of2 (Lens.getPartial l json), json
-
-        let set l v : Json<_> =
-            fun json ->
-                Choice1Of2 (), Lens.set l v json
-
-        let setPartial l v : Json<_> =
-            fun json ->
-                Choice1Of2 (), Lens.setPartial l v json
-
-        let map l f : Json<_> =
-            fun json ->
-                Choice1Of2 (), Lens.map l f json
-
-        let mapPartial l f : Json<_> =
-            fun json ->
-                Choice1Of2 (), Lens.mapPartial l f json
+                match json with
+                | Some json ->
+                    match fromJson json with
+                    | Value x -> return! Json.succeed x
+                    | _ -> return! Json.fail ""
+                | _ ->
+                    return! Json.fail "" }

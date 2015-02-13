@@ -1,53 +1,27 @@
-﻿open Aether
-open Aether.Operators
-open Chiron
+﻿open Chiron
+
+type Test =
+    { Text: string
+      Number: float }
 
 let jsonSample =
     """{
-      "firstName": "John",
-      "lastName": "Smith",
-      "isAlive": true,
-      "age": 25,
-      "height_cm": 167.6,
-      "address": {
-        "streetAddress": "21 2nd Street",
-        "city": "New York",
-        "state": "NY",
-        "postalCode": "10021-3100"
-      },
-      "phoneNumbers": [
-        {
-          "type": "home",
-          "number": "212 555-1234"
-        },
-        {
-          "type": "office",
-          "number": "646 555-4567"
-        }
-      ],
-      "children": [],
-      "spouse": null
+      "text": "hello world",
+      "number": 21.5
     }"""
-
-let streetPLens =
-         idLens
-    <-?> Json.JObjectPIso
-    >??> mapPLens "address"
-    <??> Json.JObjectPIso
-    >??> mapPLens "streetAddress"
-    <??> Json.JStringPIso
 
 [<EntryPoint>]
 let main _ =
 
-    let write =
+    let read =
         json {
-            let! street = Json.getPartial streetPLens
-            do! Json.setPartial streetPLens "25 New Street"
+            let! text = Json.read "text"
+            let! number = Json.read "number"
 
-            return street }
+            return {
+                Text = text
+                Number = number } }
 
-    let data = Json.parse jsonSample
-    let result, newData = write data
+    let test, _ = read (Json.parse jsonSample)
 
     0
