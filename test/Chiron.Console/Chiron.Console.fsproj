@@ -60,7 +60,7 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Aether">
-      <HintPath>..\..\packages\Aether.5.1\lib\net40\Aether.dll</HintPath>
+      <HintPath>..\..\packages\Aether.6.0\lib\net40\Aether.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="mscorlib" />

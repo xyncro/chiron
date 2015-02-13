@@ -2,18 +2,52 @@
 open Aether.Operators
 open Chiron
 
-let testPLens =
-    idLens <-?> JSON.JObjectPIso >??> mapPLens "hello"
+let jsonSample =
+    """{
+      "firstName": "John",
+      "lastName": "Smith",
+      "isAlive": true,
+      "age": 25,
+      "height_cm": 167.6,
+      "address": {
+        "streetAddress": "21 2nd Street",
+        "city": "New York",
+        "state": "NY",
+        "postalCode": "10021-3100"
+      },
+      "phoneNumbers": [
+        {
+          "type": "home",
+          "number": "212 555-1234"
+        },
+        {
+          "type": "office",
+          "number": "646 555-4567"
+        }
+      ],
+      "children": [],
+      "spouse": null
+    }"""
+
+let streetPLens =
+         idLens
+    <-?> Json.JObjectPIso
+    >??> mapPLens "address"
+    <??> Json.JObjectPIso
+    >??> mapPLens "streetAddress"
+    <??> Json.JStringPIso
 
 [<EntryPoint>]
 let main _ =
 
     let write =
         json {
-            do! modM (setPL testPLens (JString "world"))
-            return! getM }
+            let! street = Json.getPartial streetPLens
+            do! Json.setPartial streetPLens "25 New Street"
 
-    let jobj = JObject Map.empty
-    let result = write jobj
+            return street }
+
+    let data = Json.parse jsonSample
+    let result, newData = write data
 
     0
