@@ -6,6 +6,12 @@
 *.user
 *.sln.docstates
 
+# Paket
+.paket/paket.exe
+
+# Temp
+temp
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

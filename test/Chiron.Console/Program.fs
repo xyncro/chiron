@@ -1,77 +1,54 @@
 ﻿open Chiron
 open Chiron.Operators
 
-// Types
+type Test =
+    { Text: string
+      Number: float
+      Sub: SubTest }
 
-type User =
-    { Name: string
-      Contact: Contact
-      Registered: bool }
+    static member FromJson (_: Test) =
+            fun t n s ->
+                { Text = t
+                  Number = n
+                  Sub = s }
+        <!> Json.read "text"
+        <*> Json.read "number"
+        <*> Json.read "sub"
 
-and Contact =
-    { Email: string option }
+    static member ToJson (x: Test) =
+            Json.write "text" x.Text
+         *> Json.write "number" x.Number
+         *> Json.write "sub" x.Sub
 
-// Serialization 
+and SubTest =
+    { SubText: string }
 
-type User with
+    static member FromJson (_: SubTest) =
+            fun st ->
+                { SubText = st }
+        <!> Json.read "subText"
 
-    static member toJSON (x: User) =
-        json {
-            do! "name" <! x.Name
-            do! "contact" <! x.Contact
-            do! "registered" <! x.Registered }
+    static member ToJson (x: SubTest) =
+        Json.write "subText" x.SubText
 
-and Contact with
-
-    static member toJSON (x: Contact) =
-        json {
-            do! "email" <! x.Email }
-
-// Deserialization
-
-type User with
-
-    static member fromJSON (_: User) =
-        json {
-            let! name = !! "name"
-            let! contact = !! "contact"
-            let! registered = !! "registered"
-
-            return {
-                Name = name
-                Contact = contact
-                Registered = registered } }
-
-and Contact with
-
-    static member fromJSON (_: Contact) =
-        json {
-            let! email = !! "email"
-
-            return { 
-                Email = email } }
-
-// Instances
-
-let example = 
-    { Name = "Andrew Cherry"
-      Contact = 
-        { Email = Some "andrew@xyncro.com" }
-      Registered = true }
-
-// Helpers
-
-let stringify = 
-    toJSON >> writeJSON
-
-let parse =
-    readJSON >> function | Choice1Of2 x -> fromJSON x | Choice2Of2 x -> Choice2Of2 x
-
+let jsonSample =
+    """{
+      "text": "hello world",
+      "number": 21.5,
+      "sub": {
+        "subText": "foo"
+      }
+    }"""
 
 [<EntryPoint>]
 let main _ =
 
-    let json = stringify example
-    let user : Choice<User, _> = parse json
+
+    let json = Json.parse jsonSample
+    let test = Json.deserialize json
+
+    let json2 = Json.serialize test
+
+    printfn "%s" test.Text
 
     0
