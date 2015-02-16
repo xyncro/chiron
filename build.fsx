@@ -43,7 +43,7 @@ Target "Publish" (fun _ ->
               Project = "Chiron"
               OutputPath = tempDir
               WorkingDir = srcDir
-              Version = "0.1.1-alpha"
+              Version = "0.1.2-alpha"
               AccessKey = getBuildParamOrDefault "nuget_key" ""
               Publish = hasBuildParam "nuget_key"
               Dependencies =
