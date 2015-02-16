@@ -1,11 +1,34 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.30501.0
+VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron", "src\Chiron\Chiron.fsproj", "{0C508EEE-E451-4BB3-863A-36D3DD7DA413}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron.Console", "test\Chiron.Console\Chiron.Console.fsproj", "{E51EB032-2A8F-433D-984F-32F44ABF9A1C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{10A1D756-4F8F-47DC-882E-8CFE58D5EE55}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{9CFCA560-5277-474D-9535-5895502DAF4E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sln", "sln", "{5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "paket", "paket", "{2096F0EA-E379-4C9A-8546-680617B7CC1E}"
+	ProjectSection(SolutionItems) = preProject
+		paket.dependencies = paket.dependencies
+		paket.lock = paket.lock
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "references", "references", "{A9BA802C-64D5-4706-8465-657F8AF7180F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D85F3E6B-3A52-4099-953E-06B9766538A4}"
+	ProjectSection(SolutionItems) = preProject
+		src\Chiron\Chiron.fsproj.paket.references = src\Chiron\Chiron.fsproj.paket.references
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuget", "nuget", "{F87BBE06-BC6A-4C39-AB27-C906CE8F761F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fake", "fake", "{21B241CF-5EC0-40D9-80E3-3F6016F9B31F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +47,14 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0C508EEE-E451-4BB3-863A-36D3DD7DA413} = {10A1D756-4F8F-47DC-882E-8CFE58D5EE55}
+		{E51EB032-2A8F-433D-984F-32F44ABF9A1C} = {9CFCA560-5277-474D-9535-5895502DAF4E}
+		{2096F0EA-E379-4C9A-8546-680617B7CC1E} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
+		{A9BA802C-64D5-4706-8465-657F8AF7180F} = {2096F0EA-E379-4C9A-8546-680617B7CC1E}
+		{D85F3E6B-3A52-4099-953E-06B9766538A4} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
+		{F87BBE06-BC6A-4C39-AB27-C906CE8F761F} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
+		{21B241CF-5EC0-40D9-80E3-3F6016F9B31F} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
 	EndGlobalSection
 EndGlobal
