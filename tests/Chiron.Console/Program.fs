@@ -46,7 +46,6 @@ let main _ =
 
     let json = Json.parse jsonSample
     let test = Json.deserialize json
-
     let json2 = Json.serialize test
 
     printfn "%s" test.Text
