@@ -27,8 +27,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D85F3E6B-3A5
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuget", "nuget", "{F87BBE06-BC6A-4C39-AB27-C906CE8F761F}"
+	ProjectSection(SolutionItems) = preProject
+		nuget\Chiron.nuspec = nuget\Chiron.nuspec
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fake", "fake", "{21B241CF-5EC0-40D9-80E3-3F6016F9B31F}"
+	ProjectSection(SolutionItems) = preProject
+		build.cmd = build.cmd
+		build.fsx = build.fsx
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
