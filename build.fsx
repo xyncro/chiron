@@ -1,6 +1,7 @@
 #I "packages/FAKE/tools"
 #r "packages/FAKE/tools/FakeLib.dll"
 
+open System
 open Fake
 
 // Dirs
@@ -18,7 +19,20 @@ Target "Clean" (fun _ ->
 Target "Build" (fun _ ->
     !! "src/**/*.fsproj"
     |> MSBuildRelease srcDir "Build"
-    |> Log "Build Source: ")
+    |> Log "Build: ")
+
+// Test
+
+Target "Test" (fun _ ->
+    try
+        NUnit (fun x -> 
+            { x with
+                DisableShadowCopy = true
+                TimeOut = TimeSpan.FromMinutes 20.
+                OutputFile = "bin/TestResults.xml" }) 
+            [ "tests/Chiron.Tests/bin/Release/Chiron.Tests.dll" ]
+    finally
+        AppVeyor.UploadTestResultsXml AppVeyor.TestResultsType.NUnit "bin")
 
 // Publish
 
@@ -46,6 +60,7 @@ Target "Publish" (fun _ ->
 
 "Clean"
     ==> "Build"
+    ==> "Test"
     ==> "Publish"
 
 RunTargetOrDefault "Publish"
