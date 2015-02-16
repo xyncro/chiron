@@ -123,6 +123,12 @@ module Operators =
     let inline (.>>) m f =
         Json.bind (fun _ -> m) f
 
+    let inline ( *>) m1 m2 =
+        Json.map2 (fun _ x -> x) m1 m2
+
+    let inline ( <*) m1 m2 =
+        Json.map2 (fun x _ -> x) m1 m2
+
     let inline (>=>) m1 m2 =
         Json.bind (fun x -> m1 x) m2
 
@@ -163,7 +169,9 @@ module Builder =
 
 (* Lens
 
-    *)
+   Functional lens based access to nested Json data strcutures,
+   using Aether format lenses. Uses Json<'a> based functions, so
+   can be used monadicly. *)
 
 [<AutoOpen>]
 module Lens =
@@ -208,7 +216,12 @@ module Lens =
 
 (* Parsing
 
-    *)
+   Functions for parsing string JSON data to Json types, using
+   FParsec.
+
+   Functions parse and tryParse are effectively static,
+   while import parses the provided string JSON and replaces the
+   current state of a Json<'a> function. *)
 
 [<AutoOpen>]
 module Parsing =
@@ -346,7 +359,13 @@ module Formatting =
 
 (* Mapping
 
-    *)
+   Functional mapping between Json and native F# data structures,
+   through statically inferred types. Types providing FromJson and
+   ToJson static members with appropriate signatures can be
+   seamlessly serialized and deserialized.
+
+   This approach is the same as that taken by the Fleece library,
+   credit for which is due to Mauricio Scheffer. *)
 
 [<AutoOpen>]
 module Mapping =
@@ -355,7 +374,9 @@ module Mapping =
 
     (* From
 
-        *)
+       Default conversion functions (static members on FromJsonDefaults)
+       and statically inferred inline conversion functions for conversion
+       from Json to F# data structures. *)
 
     type FromJsonDefaults = FromJsonDefaults with
 
@@ -390,7 +411,7 @@ module Mapping =
     let inline internal toJsonDefaults (_: ^a, b: ^b) =
         ((^a or ^b) : (static member ToJson: ^b -> unit Json) b)
 
-    let inline toJson (x: 'a) =
+    let inline internal toJson (x: 'a) =
         snd (toJsonDefaults (ToJsonDefaults, x) (JObject (Map.empty)))
 
     (* Functions
@@ -426,3 +447,6 @@ module Mapping =
             fromJson json
             |> function | Value a -> Some a
                         | _ -> None
+
+        let inline serialize a =
+            toJson a

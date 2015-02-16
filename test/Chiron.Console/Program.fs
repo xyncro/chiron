@@ -3,7 +3,7 @@ open Chiron.Operators
 
 type Test =
     { Text: string
-      Number: float option
+      Number: float
       Sub: SubTest }
 
     static member FromJson (_: Test) =
@@ -12,8 +12,13 @@ type Test =
                   Number = n
                   Sub = s }
         <!> Json.read "text"
-        <*> Json.tryRead "number"
+        <*> Json.read "number"
         <*> Json.read "sub"
+
+    static member ToJson (x: Test) =
+            Json.write "text" x.Text
+         *> Json.write "number" x.Number
+         *> Json.write "sub" x.Sub
 
 and SubTest =
     { SubText: string }
@@ -23,6 +28,8 @@ and SubTest =
                 { SubText = st }
         <!> Json.read "subText"
 
+    static member ToJson (x: SubTest) =
+        Json.write "subText" x.SubText
 
 let jsonSample =
     """{
@@ -39,6 +46,8 @@ let main _ =
 
     let json = Json.parse jsonSample
     let test = Json.deserialize json
+
+    let json2 = Json.serialize test
 
     printfn "%s" test.Text
 
