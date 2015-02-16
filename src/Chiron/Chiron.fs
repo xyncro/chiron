@@ -1,14 +1,12 @@
 ﻿module Chiron
 
 open Aether
-open Aether.Operators
 open FParsec
 
 (* Types
 
    Simple AST for JSON, with included isomorphisms in Aether format for
-   lens/isomorphism based modification of complex JSON structures, plus the
-   monadic signature of the "json" computation expression. *)
+   lens/isomorphism based modification of complex JSON structures. *)
 
 type Json =
     | JArray of Json list
@@ -42,15 +40,17 @@ type Json =
         (function | JString x -> Some x
                   | _ -> None), JString
 
-(* Monadic
+(* Functional
 
-   A computation expression based interface to Json data, providing
-   lens based access to deeply nested elements of a Json data structure
-   as part of the computation expression state (the monad is a state
-   monad where the state is of type Json). *)
+   Functional signatures for working with Json types, implying a monadic
+   approach to working with Json where appropriate.
+
+   Additionally includes common functions for combining and creating
+   functions of type Json<'a> which may be used via operator based
+   combinators or a computation expression (both provided later). *)
 
 [<AutoOpen>]
-module Monadic =
+module Functional =
 
     type Json<'a> =
         Json -> JsonResult<'a> * Json
@@ -59,43 +59,114 @@ module Monadic =
         | Value of 'a
         | Error of string
 
-    (* Builder
+    (* Functions
 
-       Computation expression (monad) for working with JSON structures in a
-       simple way, including lensing, morphisms, etc. using the Aether
-       library. *)
+       Common functions for combining Json<'a> functions in to new
+       forms, and for creating new Json<'a> functions given suitable
+       initial data. *)
+
+    [<RequireQualifiedAccess>]
+    module Json =
+
+        let inline init (a: 'a) : Json<'a> = 
+            fun json ->
+                Value a, json
+
+        let inline error (e: string) : Json<'a> =
+            fun json ->
+                Error e, json
+
+        let inline bind (m: Json<'a>) (f: 'a -> Json<'b>) : Json<'b> =
+            fun json ->
+                match m json with
+                | Value a, json -> (f a) json
+                | Error e, json -> Error e, json
+
+        let inline apply (f: Json<'a -> 'b>) (m: Json<'a>) : Json<'b> =
+            bind f (fun f' ->
+                bind m (fun m' ->
+                    init (f' m')))
+
+        let inline map (f: 'a -> 'b) (m: Json<'a>) : Json<'b> =
+            bind m (fun m' ->
+                init (f m'))
+
+        let inline map2 (f: 'a -> 'b -> 'c) (m1: Json<'a>) (m2: Json<'b>) : Json<'c> =
+            apply (apply (init f) m1) m2
+
+(* Operators
+
+   Symbolic operators for working with Json<'a> functions, providing
+   an operator based concise alternative to the primitive Json<'a> combinators
+   given as part of Functional.
+   
+   This module is not opened by default, as symbolic operators are a matter
+   of taste and may also clash with other operators from other libraries. *)
+
+module Operators =
+
+    let inline (>>=) m f =
+        Json.bind m f
+
+    let inline (=<<) f m =
+        Json.bind m f
+
+    let inline (<*>) f m =
+        Json.apply f m
+
+    let inline (<!>) f m =
+        Json.map f m
+
+    let inline (>>.) m f =
+        Json.bind m (fun _ -> f)
+
+    let inline (.>>) m f =
+        Json.bind (fun _ -> m) f
+
+    let inline (>=>) m1 m2 =
+        Json.bind (fun x -> m1 x) m2
+
+    let inline (<=<) m1 m2 =
+        Json.bind (fun x -> m2 x) m1
+
+(* Builder
+
+   Computation expression (builder) for working with JSON structures in a
+   simple way, including lensing, morphisms, etc. using the Aether
+   library. *)
+
+[<AutoOpen>]
+module Builder =
 
     type JsonBuilder () =
 
         member __.Bind (m1, m2) : Json<_> =
-            fun json ->
-                match m1 json with
-                | Value x, json -> m2 x json
-                | Error e, json -> Error e, json
+            Json.bind m1 m2
 
         member __.Combine (m1, m2) : Json<_> =
-            fun json ->
-                match m1 json with
-                | Value (), json -> m2 () json
-                | Error e, json -> Error e, json
+            Json.bind m1 (fun () -> m2)
 
         member __.Delay (f) : Json<_> =
-            fun json ->
-                f () json
+            Json.bind (Json.init ()) f
 
         member __.Return (x) : Json<_> =
-            fun json -> 
-                Value x, json
+            Json.init x
 
         member __.ReturnFrom (f) : Json<_> =
             f
 
         member __.Zero () : Json<_> =
-            fun json ->
-                Value (), json
+            Json.init ()
 
     let json =
         JsonBuilder ()
+
+(* Lens
+
+    *)
+
+[<AutoOpen>]
+module Lens =
 
     (* Functions
 
@@ -105,39 +176,39 @@ module Monadic =
     [<RequireQualifiedAccess>]
     module Json =
 
-        let succeed x : Json<_> =
-            fun json ->
-                Value x, json
-
-        let fail e : Json<_> =
-            fun json ->
-                Error e, json
-
-        let get l : Json<_> =
+        let getLens l : Json<_> =
             fun json ->
                 Value (Lens.get l json), json
 
-        let getPartial l : Json<_> =
+        let getLensPartial l : Json<_> =
+            fun json ->
+                match Lens.getPartial l json with
+                | Some x -> Value x, json
+                | _ -> Error "", json
+
+        let tryGetLensPartial l : Json<_> =
             fun json ->
                 Value (Lens.getPartial l json), json
 
-        let set l v : Json<_> =
+        let setLens l v : Json<_> =
             fun json ->
                 Value (), Lens.set l v json
 
-        let setPartial l v : Json<_> =
+        let setLensPartial l v : Json<_> =
             fun json ->
                 Value (), Lens.setPartial l v json
 
-        let map l f : Json<_> =
+        let mapLens l f : Json<_> =
             fun json ->
                 Value (), Lens.map l f json
 
-        let mapPartial l f : Json<_> =
+        let mapLensPartial l f : Json<_> =
             fun json ->
                 Value (), Lens.mapPartial l f json
 
-(* Parsing *)
+(* Parsing
+
+    *)
 
 [<AutoOpen>]
 module Parsing =
@@ -273,52 +344,85 @@ module Formatting =
 
 
 
-(* Mapping *)
+(* Mapping
+
+    *)
 
 [<AutoOpen>]
 module Mapping =
 
-    (* From JSON *)
+    open Operators
+
+    (* From
+
+        *)
 
     type FromJsonDefaults = FromJsonDefaults with
 
         static member inline FromJson (_: string) =
-            Json.getPartial (idLens <-?> Json.JStringPIso)
+            Json.getLensPartial (idLens <-?> Json.JStringPIso)
 
         static member inline FromJson (_: float) =
-            Json.getPartial (idLens <-?> Json.JNumberPIso)
+            Json.getLensPartial (idLens <-?> Json.JNumberPIso)
 
-    let inline internal fromJsonWithDefaults (_: ^a, b: ^b) =
-        ((^a or ^b) : (static member FromJson: ^b -> (^b option) Json) b)
+    let inline internal fromJsonDefaults (_: ^a, b: ^b) =
+        ((^a or ^b) : (static member FromJson: ^b -> ^b Json) b)
 
-    let inline internal fromJson (x: Json) =
-        fst (fromJsonWithDefaults (FromJsonDefaults, Unchecked.defaultof<'a>) x)
+    let inline internal fromJson json =
+        fst (fromJsonDefaults (FromJsonDefaults, Unchecked.defaultof<'a>) json)
 
-    (* To JSON *)
+    let inline internal readJson json =
+        fromJson json
+        |> function | Value a -> Json.init a
+                    | Error e -> Json.error e
+    (* To
+
+        *)
+
+    type ToJsonDefaults = ToJsonDefaults with
+
+        static member inline ToJson (x: string) =
+            Json.setLensPartial (idLens <-?> Json.JStringPIso) x
+
+        static member inline ToJson (x: float) =
+            Json.setLensPartial (idLens <-?> Json.JNumberPIso) x
+
+    let inline internal toJsonDefaults (_: ^a, b: ^b) =
+        ((^a or ^b) : (static member ToJson: ^b -> unit Json) b)
+
+    let inline toJson (x: 'a) =
+        snd (toJsonDefaults (ToJsonDefaults, x) (JObject (Map.empty)))
+
+    (* Functions
+
+        *)
 
     [<RequireQualifiedAccess>]
     module Json =
+        
+        let inline internal lens key =
+                 idLens 
+            <-?> Json.JObjectPIso 
+            >??> mapPLens key
 
         let inline read key =
-            json {
-                let! json = Json.getPartial (idLens <-?> Json.JObjectPIso >??> mapPLens key)
+                Json.getLensPartial (lens key) 
+            >=> readJson
 
-                match json with
-                | Some json ->
-                    match fromJson json with
-                    | Value (Some x) -> return! Json.succeed x
-                    | _ -> return! Json.fail ""
-                | _ ->
-                    return! Json.fail "" }
+        let inline tryRead key =
+                Json.tryGetLensPartial (lens key)
+            >=> function | Some json -> Some <!> readJson json
+                         | _ -> Json.init None
 
-        let inline readPartial key =
-            json {
-                let! json = Json.getPartial (idLens <-?> Json.JObjectPIso >??> mapPLens key)
+        let inline write key value =
+            Json.setLensPartial (lens key) (toJson value)
 
-                match json with
-                | Some json ->
-                    match fromJson json with
-                    | Value x -> return! Json.succeed x
-                    | _ -> return! Json.fail ""
-                | _ ->
-                    return! Json.fail "" }
+        let inline deserialize json =
+            fromJson json
+            |> function | Value a -> a
+                        | Error e -> failwith e
+
+        let inline tryDeserialize json =
+            fromJson json
+            |> function | Value a -> Some a
+                        | _ -> None
