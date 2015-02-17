@@ -378,13 +378,47 @@ module Mapping =
        and statically inferred inline conversion functions for conversion
        from Json to F# data structures. *)
 
+    let inline internal get iso =
+        Json.getLensPartial (idLens <-?> iso)
+
+    (* Simply Typed Defaults *)
+
     type FromJsonDefaults = FromJsonDefaults with
 
-        static member inline FromJson (_: string) =
-            Json.getLensPartial (idLens <-?> Json.JStringPIso)
+        static member inline FromJson (_: bool) =
+            get Json.JBoolPIso
+
+        static member inline FromJson (_: decimal) =
+            decimal <!> get Json.JNumberPIso
 
         static member inline FromJson (_: float) =
-            Json.getLensPartial (idLens <-?> Json.JNumberPIso)
+            get Json.JNumberPIso
+
+        static member inline FromJson (_: int) =
+            int <!> get Json.JNumberPIso
+
+        static member inline FromJson (_: int16) =
+            int16 <!> get Json.JNumberPIso
+
+        static member inline FromJson (_: int64) =
+            int64 <!> get Json.JNumberPIso
+
+        static member inline FromJson (_: single) =
+            single <!> get Json.JNumberPIso
+
+        static member inline FromJson (_: string) =
+            get Json.JStringPIso
+
+        static member inline FromJson (_: uint16) =
+            uint16 <!> get Json.JNumberPIso
+
+        static member inline FromJson (_: uint32) =
+            uint32 <!> get Json.JNumberPIso
+
+        static member inline FromJson (_: uint64) =
+            uint64 <!> get Json.JNumberPIso
+
+    (* Mapping Functions *)
 
     let inline internal fromJsonDefaults (_: ^a, b: ^b) =
         ((^a or ^b) : (static member FromJson: ^b -> ^b Json) b)
@@ -396,17 +430,61 @@ module Mapping =
         fromJson json
         |> function | Value a -> Json.init a
                     | Error e -> Json.error e
+
+    (* Complex Typed Defaults *)
+
+    // TODO: Obviously, neaten this up...
+    // Probably also generalize in some form...
+    // Fold over Map -> Key,Val pairs?
+
+
+    let inline internal foldFromJson xs =
+        List.fold (fun s x ->
+            match s, fromJson x with
+            | Value xs, Value x -> Value (x :: xs)
+            | Error e, _ -> Error e
+            | _, Error e -> Error e) (Value []) xs
+        |> function | Value a -> Json.init a
+                    | Error e -> Json.error e
+
+    type FromJsonDefaults with
+
+        static member inline FromJson (_: 'a array) : Json<'a array> =
+                Json.getLens idLens
+            >=> function | JArray x -> List.toArray <!> foldFromJson x
+                         | _ -> Json.error ""
+
+    type FromJsonDefaults with
+
+        static member inline FromJson (_: 'a list) : Json<'a list> =
+                Json.getLens idLens
+            >=> function | JArray x -> foldFromJson x
+                         | _ -> Json.error ""
+
+    type FromJsonDefaults with
+
+        static member inline FromJson (_: 'a option) : Json<'a option> =
+                Json.getLens idLens
+            >=> function | JNull _ -> Json.init None
+                         | x -> Some <!> readJson x
+
     (* To
 
         *)
 
+    let inline internal set iso v =
+        Json.setLensPartial (idLens <-?> iso) v
+
     type ToJsonDefaults = ToJsonDefaults with
 
-        static member inline ToJson (x: string) =
-            Json.setLensPartial (idLens <-?> Json.JStringPIso) x
+        static member inline ToJson (x: bool) =
+            set Json.JBoolPIso x
 
         static member inline ToJson (x: float) =
-            Json.setLensPartial (idLens <-?> Json.JNumberPIso) x
+            set Json.JNumberPIso x
+
+        static member inline ToJson (x: string) =
+            set Json.JStringPIso x
 
     let inline internal toJsonDefaults (_: ^a, b: ^b) =
         ((^a or ^b) : (static member ToJson: ^b -> unit Json) b)

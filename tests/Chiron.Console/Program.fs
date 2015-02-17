@@ -2,42 +2,29 @@
 open Chiron.Operators
 
 type Test =
-    { Text: string
+    { Bool: bool option
       Number: float
-      Sub: SubTest }
+      String: string }
 
     static member FromJson (_: Test) =
-            fun t n s ->
-                { Text = t
+            fun b n s ->
+                { Bool = b
                   Number = n
-                  Sub = s }
-        <!> Json.read "text"
+                  String = s }
+        <!> Json.read "bool"
         <*> Json.read "number"
-        <*> Json.read "sub"
-
-    static member ToJson (x: Test) =
-            Json.write "text" x.Text
-         *> Json.write "number" x.Number
-         *> Json.write "sub" x.Sub
-
-and SubTest =
-    { SubText: string }
-
-    static member FromJson (_: SubTest) =
-            fun st ->
-                { SubText = st }
-        <!> Json.read "subText"
-
-    static member ToJson (x: SubTest) =
-        Json.write "subText" x.SubText
-
+        <*> Json.read "string"
+//
+//    static member ToJson (x: Test) =
+//            Json.write "bool" x.Bool
+//         *> Json.write "number" x.Number
+//         *> Json.write "string" x.String
+//
 let jsonSample =
     """{
-      "text": "hello world",
-      "number": 21.5,
-      "sub": {
-        "subText": "foo"
-      }
+      "bool": true,
+      "number": 42,
+      "string": "hello world"
     }"""
 
 [<EntryPoint>]
@@ -46,8 +33,8 @@ let main _ =
 
     let json = Json.parse jsonSample
     let test = Json.deserialize json
-    let json2 = Json.serialize test
+    //let json2 = Json.serialize test
 
-    printfn "%s" test.Text
+    printfn "%s" test.String
 
     0
