@@ -35,10 +35,10 @@ Target "Test" (fun _ ->
             { x with
                 DisableShadowCopy = true
                 TimeOut = TimeSpan.FromMinutes 20.
-                OutputFile = "bin/TestResults.xml" }) 
+                OutputFile = "temp/TestResults.xml" }) 
             [ "tests/Chiron.Tests/bin/Release/Chiron.Tests.dll" ]
     finally
-        AppVeyor.UploadTestResultsXml AppVeyor.TestResultsType.NUnit "bin")
+        AppVeyor.UploadTestResultsXml AppVeyor.TestResultsType.NUnit "temp")
 
 // Publish
 
