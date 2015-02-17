@@ -17,9 +17,15 @@ Target "Clean" (fun _ ->
 // Build
 
 Target "Build" (fun _ ->
-    !! "src/**/*.fsproj"
-    |> MSBuildRelease srcDir "Build"
-    |> Log "Build: ")
+    build (fun x ->
+        { x with
+            Properties =
+                [ "Optimize",      environVarOrDefault "Build.Optimize"      "True"
+                  "DebugSymbols",  environVarOrDefault "Build.DebugSymbols"  "True"
+                  "Configuration", environVarOrDefault "Build.Configuration" "Release" ]
+            Targets =
+                [ "Build" ]
+            Verbosity = Some Quiet }) "Chiron.sln")
 
 // Test
 
