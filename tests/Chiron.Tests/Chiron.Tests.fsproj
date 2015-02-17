@@ -152,7 +152,7 @@
     </When>
   </Choose>
   <ItemGroup>
-    <Compile Include="Functional.fs" />
+    <Compile Include="Chiron.Tests.fs" />
     <Content Include="App.config" />
   </ItemGroup>
   <ItemGroup>
