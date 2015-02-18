@@ -6,4 +6,5 @@ nuget FSharp.Core
 nuget Fake
 nuget Nuget.CommandLine
 nuget NUnit
+nuget NUnit.Runners
 nuget Unquote
