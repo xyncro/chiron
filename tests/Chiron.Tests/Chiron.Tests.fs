@@ -182,3 +182,22 @@ let ``Json.deserialize with custom typed returns correct values`` () =
         =? { String = "hello"
              Number = Some 42
              Values = [ true; false ] }
+
+[<Test>]
+let ``Json.serialize with simple types returns correct values`` () =
+
+    (* Bool *)
+
+    Json.serialize true =? Bool true
+
+    (* Numeric *)
+
+    Json.serialize (decimal 42) =? Number 42.
+    Json.serialize (float 42) =? Number 42.
+    Json.serialize (int 42) =? Number 42.
+    Json.serialize (int16 42) =? Number 42.
+    Json.serialize (int64 42) =? Number 42.
+    Json.serialize (single 42) =? Number 42.
+    Json.serialize (uint16 42) =? Number 42.
+    Json.serialize (uint32 42) =? Number 42.
+    Json.serialize (uint64 42) =? Number 42.

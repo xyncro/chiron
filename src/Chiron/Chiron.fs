@@ -380,6 +380,9 @@ module Mapping =
     let inline internal arrayPLens _ =
         idLens <-?> Json.ArrayPIso
 
+    let inline internal boolPLens _ =
+        idLens <-?> Json.BoolPIso
+
     let inline internal numberPLens _ =
         idLens <-?> Json.NumberPIso
 
@@ -400,7 +403,7 @@ module Mapping =
     type FromJsonDefaults = FromJsonDefaults with
 
         static member inline FromJson (_: bool) =
-            Json.getLensPartial (idLens <-?> Json.BoolPIso)
+            Json.getLensPartial (boolPLens ())
 
         static member inline FromJson (_: decimal) =
             decimal <!> Json.getLensPartial (numberPLens ())
@@ -433,8 +436,8 @@ module Mapping =
             uint64 <!> Json.getLensPartial (numberPLens ())
 
     (* Mapping Functions
-    
-       Functions for applying to FromJson function to Json to produce
+
+       Functions for applying the FromJson function to Json to produce
        new instances of 'a where possible, including folding the FromJson
        function across a list of Json objects. *)
 
@@ -513,13 +516,63 @@ module Mapping =
                             Json.error "tuple3"
             <=< Json.getLensPartial (arrayPLens ())
 
+    (* To
+    
+        *)
+
+    type ToJsonDefaults = ToJsonDefaults with
+
+        static member inline ToJson (x: bool) =
+            Json.setLensPartial (boolPLens ()) x
+
+        static member inline ToJson (x: decimal) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: float) =
+            Json.setLensPartial (numberPLens ()) x
+
+        static member inline ToJson (x: int) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: int16) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: int64) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: single) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: string) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: uint16) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: uint32) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+        static member inline ToJson (x: uint64) =
+            Json.setLensPartial (numberPLens ()) (float x)
+
+    (* Mapping Functions
+
+       Functions for applying the ToJson function to data structures to produce
+       new Json instances. *)
+
+    let inline internal toJsonDefaults (_: ^a, b: ^b) =
+        ((^a or ^b) : (static member ToJson: ^b -> unit Json) b)
+
+    let inline internal toJson (x: 'a) : Json<unit> =
+        fun _ -> toJsonDefaults (ToJsonDefaults, x) (Object (Map.empty))
+
     (* Functions
 
         *)
 
     [<RequireQualifiedAccess>]
     module Json =
-        
+
         (* Read *)
 
         let inline read key =
@@ -531,52 +584,33 @@ module Mapping =
                          | _ -> Json.init None
             <=< Json.tryGetLensPartial (objectKeyPLens key)
 
+        (* Write *)
+
+        let inline write key value =
+                toJson value 
+             *> Json.getLens idLens 
+            >=> Json.setLensPartial (objectKeyPLens key)
+
         (* Deserialization *)
 
         let inline deserialize json =
-            fromJson json (Null ())
+            Null ()
+            |> fromJson json
             |> fst
             |> function | Value a -> a
                         | Error e -> failwith e
 
         let inline tryDeserialize json =
-            fromJson json (Null ())
+            Null ()
+            |> fromJson json
             |> fst
             |> function | Value a -> Some a
                         | _ -> None
 
+        (* Serialization *)
 
-
-
-
-
-//        let inline serialize a =
-//            toJson a
-//
-//        let inline write key value =
-//            Json.setLensPartial (lens key) (toJson value)
-//
-
-//    (* To
-//
-//        *)
-//
-//    let inline internal set iso v =
-//        Json.setLensPartial (idLens <-?> iso) v
-//
-//    type ToJsonDefaults = ToJsonDefaults with
-//
-//        static member inline ToJson (x: bool) =
-//            set Json.JBoolPIso x
-//
-//        static member inline ToJson (x: float) =
-//            set Json.JNumberPIso x
-//
-//        static member inline ToJson (x: string) =
-//            set Json.JStringPIso x
-//
-//    let inline internal toJsonDefaults (_: ^a, b: ^b) =
-//        ((^a or ^b) : (static member ToJson: ^b -> unit Json) b)
-//
-//    let inline internal toJson (x: 'a) =
-//        snd (toJsonDefaults (ToJsonDefaults, x) (JObject (Map.empty)))
+        let inline serialize a =
+            Null ()
+            |> toJson a
+            |> function | Value _, json -> json
+                        | Error e, _ -> failwith e
