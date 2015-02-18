@@ -180,21 +180,23 @@ type Test =
 
     static member ToJson (x: Test) =
             Json.write "string" x.String
-//         *> Json.write "number" x.Number
-//         *> Json.write "values" x.Values
+         *> Json.write "number" x.Number
+         *> Json.write "values" x.Values
+
+let testJson =
+    Object (Map.ofList
+        [ "string", String "hello"
+          "number", Number 42.
+          "values", Array [ Bool true; Bool false ] ])
+
+let testInstance =
+    { String = "hello"
+      Number = Some 42
+      Values = [ true; false ] }
 
 [<Test>]
 let ``Json.deserialize with custom typed returns correct values`` () =
-    let json =
-        Object (Map.ofList
-            [ "string", String "hello"
-              "number", Number 42.
-              "values", Array [ Bool true; Bool false ] ])
-
-    Json.deserialize json
-        =? { String = "hello"
-             Number = Some 42
-             Values = [ true; false ] }
+    Json.deserialize testJson =? testInstance
 
 [<Test>]
 let ``Json.serialize with simple types returns correct values`` () =
@@ -214,3 +216,7 @@ let ``Json.serialize with simple types returns correct values`` () =
     Json.serialize (uint16 42) =? Number 42.
     Json.serialize (uint32 42) =? Number 42.
     Json.serialize (uint64 42) =? Number 42.
+
+[<Test>]
+let ``Json.serialize with custom types returns correct values`` () =
+    Json.serialize testInstance =? testJson
