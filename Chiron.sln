@@ -45,8 +45,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7BA60919
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron.Schema", "src\Chiron.Schema\Chiron.Schema.fsproj", "{4EE2600B-C084-4ACE-B324-AFBC86F59C2D}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron.Console", "tests\Chiron.Console\Chiron.Console.fsproj", "{B184AC99-C0CD-4C06-866B-16CCCBF6881E}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -65,10 +63,6 @@ Global
 		{4EE2600B-C084-4ACE-B324-AFBC86F59C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4EE2600B-C084-4ACE-B324-AFBC86F59C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4EE2600B-C084-4ACE-B324-AFBC86F59C2D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B184AC99-C0CD-4C06-866B-16CCCBF6881E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B184AC99-C0CD-4C06-866B-16CCCBF6881E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B184AC99-C0CD-4C06-866B-16CCCBF6881E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B184AC99-C0CD-4C06-866B-16CCCBF6881E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -83,6 +77,5 @@ Global
 		{948B05DB-C8B2-42CB-A5A6-F93B8C9096DE} = {9CFCA560-5277-474D-9535-5895502DAF4E}
 		{7BA60919-04CD-4D84-AFA7-A2F908541D95} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
 		{4EE2600B-C084-4ACE-B324-AFBC86F59C2D} = {10A1D756-4F8F-47DC-882E-8CFE58D5EE55}
-		{B184AC99-C0CD-4C06-866B-16CCCBF6881E} = {9CFCA560-5277-474D-9535-5895502DAF4E}
 	EndGlobalSection
 EndGlobal
