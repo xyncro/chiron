@@ -1,18 +1,7 @@
 #I "packages/FAKE/tools"
 #r "packages/FAKE/tools/FakeLib.dll"
 
-open System
 open Fake
-
-// Dirs
-
-let tempDir = "./temp"
-let srcDir = tempDir + "/src"
-
-// Clean
-
-Target "Clean" (fun _ ->
-    CleanDirs [ tempDir ])
 
 // Build
 
@@ -25,20 +14,7 @@ Target "Build" (fun _ ->
                   "Configuration", environVarOrDefault "Build.Configuration" "Release" ]
             Targets =
                 [ "Build" ]
-            Verbosity = Some Quiet }) "Chiron.sln")
-
-// Test
-
-Target "Test" (fun _ ->
-    try
-        NUnit (fun x -> 
-            { x with
-                DisableShadowCopy = true
-                TimeOut = TimeSpan.FromMinutes 20.
-                OutputFile = "temp/TestResults.xml" }) 
-            [ "tests/Chiron.Tests/bin/Release/Chiron.Tests.dll" ]
-    finally
-        AppVeyor.UploadTestResultsXml AppVeyor.TestResultsType.NUnit "temp")
+            Verbosity = Some Normal }) "Chiron.sln")
 
 // Publish
 
@@ -47,9 +23,8 @@ Target "Publish" (fun _ ->
         { p with
               Authors = [ "Andrew Cherry" ]
               Project = "Chiron"
-              OutputPath = tempDir
-              WorkingDir = srcDir
-              Version = "0.1.3-alpha"
+              OutputPath = "bin"
+              Version = "0.1.4-alpha"
               AccessKey = getBuildParamOrDefault "nuget_key" ""
               Publish = hasBuildParam "nuget_key"
               Dependencies =
@@ -57,16 +32,14 @@ Target "Publish" (fun _ ->
                   "FParsec", GetPackageVersion "packages" "FParsec"
                   "FSharp.Core", GetPackageVersion "packages" "FSharp.Core" ]
               Files = 
-                [ "Chiron.dll", Some "lib/net40", None
-                  "Chiron.pdb", Some "lib/net40", None
-                  "Chiron.xml", Some "lib/net40", None ] })
+                [ "src/Chiron/bin/Release/Chiron.dll", Some "lib/net40", None
+                  "src/Chiron/bin/Release/Chiron.pdb", Some "lib/net40", None
+                  "src/Chiron/bin/Release/Chiron.xml", Some "lib/net40", None ] })
               "./nuget/Chiron.nuspec")
 
 // Dependencies
 
-"Clean"
-    ==> "Build"
-    ==> "Test"
+"Build"
     ==> "Publish"
 
 RunTargetOrDefault "Publish"

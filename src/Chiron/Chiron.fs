@@ -649,6 +649,9 @@ module Mapping =
 
         (* Maps *)
 
+        static member inline ToJson (x: Map<string,'a>) =
+            Json.setLens idLens (Object (Map.map (fun _ a -> toJson a) x))
+
         (* Options *)
 
         static member inline ToJson (x: 'a option) =
