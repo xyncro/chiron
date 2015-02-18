@@ -27,20 +27,6 @@ Target "Build" (fun _ ->
                 [ "Build" ]
             Verbosity = Some Quiet }) "Chiron.sln")
 
-// Test
-
-Target "Test" (fun _ ->
-    try
-        NUnit (fun x -> 
-            { x with
-                DisableShadowCopy = true
-                TimeOut = TimeSpan.FromMinutes 20.
-                ToolPath = "packages/NUnit.Runners/tools"
-                OutputFile = "temp/TestResults.xml" }) 
-            [ "tests/Chiron.Tests/bin/Release/Chiron.Tests.dll" ]
-    finally
-        AppVeyor.UploadTestResultsXml AppVeyor.TestResultsType.NUnit "temp")
-
 // Publish
 
 Target "Publish" (fun _ ->
@@ -67,7 +53,6 @@ Target "Publish" (fun _ ->
 
 "Clean"
     ==> "Build"
-    ==> "Test"
     ==> "Publish"
 
 RunTargetOrDefault "Publish"
