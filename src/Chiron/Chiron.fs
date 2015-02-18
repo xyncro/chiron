@@ -1,5 +1,6 @@
 ﻿module Chiron
 
+open System.Text
 open Aether
 open FParsec
 
@@ -353,10 +354,75 @@ module Parsing =
 [<AutoOpen>]
 module Formatting =
 
-    let format _ =
-        ()
+    (* Helpers *)
 
+    type private Formatter<'a> =
+        'a -> StringBuilder -> StringBuilder
 
+    type private Separator =
+        StringBuilder -> StringBuilder
+
+    let private append (s: string) (b: StringBuilder) =
+        b.Append s
+
+    let private appendf (s: string) (v1: obj) (b: StringBuilder) =
+        b.AppendFormat (s, v1)
+
+    let private join<'a> (f: Formatter<'a>) (s: Separator) =
+        let rec join values (b: StringBuilder) =
+            match values with
+            | [] -> b
+            | h :: [] -> f h b
+            | h :: t -> (f h >> s >> join t) b
+
+        join
+
+    (* Formatters *)
+
+    let rec private formatJson =
+        function | Array x -> formatArray x
+                 | Bool x -> formatBool x
+                 | Number x -> formatNumber x
+                 | Null _ -> formatNull ()
+                 | Object x -> formatObject x
+                 | String x -> formatString x
+
+    and private formatArray =
+        function | x ->
+                       append "[" 
+                    >> join formatJson (append ",") x 
+                    >> append "]"
+
+    and private formatBool =
+        function | true -> append "true"
+                 | _ -> append "false"
+
+    // TODO: Better number formatting!
+
+    and private formatNumber =
+        function | x -> append (string x)
+
+    and private formatNull =
+        function | () -> append "null"
+
+    and private formatObject =
+        function | x -> 
+                       append "{" 
+                    >> join (fun (k, v) -> appendf "\"{0}\":" k >> formatJson v) (append ",") (Map.toList x) 
+                    >> append "}"
+
+    and private formatString =
+        function | x -> appendf "\"{0}\"" x
+
+    (* Functions *)
+
+    [<RequireQualifiedAccess>]
+    module Json =
+
+        let format json =
+            StringBuilder ()
+            |> formatJson json
+            |> string
 
 (* Mapping
 
@@ -444,19 +510,18 @@ module Mapping =
     let inline internal fromJsonDefaults (a: ^a, _: ^b) =
         ((^a or ^b) : (static member FromJson: ^a -> ^a Json) a)
 
-    let inline internal fromJson x : Json<'a> =
-        Json.ofResult (fst (fromJsonDefaults (Unchecked.defaultof<'a>, FromJsonDefaults) x))
+    let inline internal fromJson x =
+        fst (fromJsonDefaults (Unchecked.defaultof<'a>, FromJsonDefaults) x)
 
     let inline internal fromJsonFold init fold xs =
-        fun json ->
-            List.fold (fun (r, _) x ->
-                match r with
-                | Error e ->
-                    Error e, json
-                | Value xs ->
-                    match fromJson x json with
-                    | Value x, _ -> Value (fold x xs), json
-                    | Error e, _ -> Error e, json) (Value init, json) (List.rev xs)
+        List.fold (fun r x ->
+            match r with
+            | Error e ->
+                Error e
+            | Value xs ->
+                match fromJson x with
+                | Value x -> Value (fold x xs)
+                | Error e -> Error e) (Value init) (List.rev xs)
 
     (* Defaults *)
 
@@ -465,53 +530,53 @@ module Mapping =
         (* Arrays *)
 
         static member inline FromJson (_: 'a array) : Json<'a array> =
-                fromJsonFold Array.empty (fun x xs -> Array.append [| x |] xs)
-            <=< Json.getLensPartial (arrayPLens ()) 
+                fromJsonFold Array.empty (fun x xs -> Array.append [| x |] xs) >> Json.ofResult
+            =<< Json.getLensPartial (arrayPLens ())
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
-                fromJsonFold List.empty (fun x xs -> x :: xs)
-            <=< Json.getLensPartial (arrayPLens ())
+                fromJsonFold List.empty (fun x xs -> x :: xs) >> Json.ofResult
+            =<< Json.getLensPartial (arrayPLens ())
 
         (* Maps *)
 
         static member inline FromJson (_: Map<string,'a>) : Json<Map<string,'a>> =
                 fun x ->
                     let k, v = (Map.toList >> List.unzip) x
-                    List.zip k >> Map.ofList <!> fromJsonFold [] (fun x xs -> x :: xs) v
-            <=< Json.getLensPartial (objectPLens ())
+                    List.zip k >> Map.ofList <!> Json.ofResult (fromJsonFold [] (fun x xs -> x :: xs) v)
+            =<< Json.getLensPartial (objectPLens ())
 
         (* Sets *)
 
         static member inline FromJson (_: Set<'a>) : Json<Set<'a>> =
-                fromJsonFold Set.empty Set.add
-            <=< Json.getLensPartial (arrayPLens ())
+                fromJsonFold Set.empty Set.add >> Json.ofResult
+            =<< Json.getLensPartial (arrayPLens ())
 
         (* Options *)
 
         static member inline FromJson (_: 'a option) : Json<'a option> =
                 function | Null _ -> Json.init None
-                         | x -> Some <!> fromJson x
-            <=< Json.getLens idLens
+                         | x -> Some <!> Json.ofResult (fromJson x)
+            =<< Json.getLens idLens
 
         (* Tuples *)
 
         static member inline FromJson (_: 'a * 'b) : Json<'a * 'b> =
                 function | a :: b :: [] ->
                                 fun a b -> a, b
-                            <!> fromJson a 
-                            <*> fromJson b
+                            <!> Json.ofResult (fromJson a)
+                            <*> Json.ofResult (fromJson b)
                          | _ ->
                             Json.error "tuple2"
-            <=< Json.getLensPartial (arrayPLens ())
+            =<< Json.getLensPartial (arrayPLens ())
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
                 function | a :: b :: c :: [] ->
                                 fun a b c -> a, b, c
-                            <!> fromJson a 
-                            <*> fromJson b
-                            <*> fromJson c
+                            <!> Json.ofResult (fromJson a)
+                            <*> Json.ofResult (fromJson b)
+                            <*> Json.ofResult (fromJson c)
                          | _ ->
                             Json.error "tuple3"
             <=< Json.getLensPartial (arrayPLens ())
@@ -519,6 +584,8 @@ module Mapping =
     (* To
     
         *)
+
+    (* Defaults *)
 
     type ToJsonDefaults = ToJsonDefaults with
 
@@ -566,6 +633,18 @@ module Mapping =
     let inline internal toJson (x: 'a) : Json<unit> =
         fun _ -> toJsonDefaults (ToJsonDefaults, x) (Object (Map.empty))
 
+    //let inline internal toJsonFold xs : Json<unit> =
+        
+
+    (* Defaults *)
+
+//    type ToJsonDefaults with
+//
+//        (* Arrays *)
+//
+//        static member inline ToJson (x: 'a array) =
+//            Json.setLens idLens (Array (List.m))
+
     (* Functions
 
         *)
@@ -576,11 +655,11 @@ module Mapping =
         (* Read *)
 
         let inline read key =
-                fromJson
-            <=< Json.getLensPartial (objectKeyPLens key) 
+                fromJson >> Json.ofResult
+            =<< Json.getLensPartial (objectKeyPLens key) 
 
         let inline tryRead key =
-                function | Some json -> Some <!> fromJson json
+                function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
             <=< Json.tryGetLensPartial (objectKeyPLens key)
 
@@ -594,16 +673,12 @@ module Mapping =
         (* Deserialization *)
 
         let inline deserialize json =
-            Null ()
-            |> fromJson json
-            |> fst
+            fromJson json
             |> function | Value a -> a
                         | Error e -> failwith e
 
         let inline tryDeserialize json =
-            Null ()
-            |> fromJson json
-            |> fst
+            fromJson json
             |> function | Value a -> Some a
                         | _ -> None
 

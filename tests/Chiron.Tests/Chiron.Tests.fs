@@ -92,6 +92,14 @@ let ``Json.mapLens returns correct values`` () =
 let ``Json.mapLensPartial returns correct values`` () =
     Json.mapLensPartial lens not t1 =? (Value (), t2)
 
+(* Parsing *)
+
+(* Formatting *)
+
+[<Test>]
+let ``Json.format returns correct values`` () =
+    Json.format t1 =? """{"bool":true,"number":2}"""
+
 (* Mapping
 
    Tests exercising mapping functions between Json and other F#
@@ -169,6 +177,11 @@ type Test =
         <!> Json.read "string"
         <*> Json.read "number"
         <*> Json.read "values"
+
+    static member ToJson (x: Test) =
+            Json.write "string" x.String
+//         *> Json.write "number" x.Number
+//         *> Json.write "values" x.Values
 
 [<Test>]
 let ``Json.deserialize with custom typed returns correct values`` () =
