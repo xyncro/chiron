@@ -1,6 +1,7 @@
 source http://nuget.org/api/v2
 
 nuget Aether
+nuget Freya.Types.Uri 0.9.0-alpha-46
 nuget FParsec
 nuget FSharp.Core
 nuget Fake

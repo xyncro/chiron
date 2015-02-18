@@ -77,9 +77,8 @@ module Functional =
                 Error e, json
 
         let inline internal ofResult result =
-            match result with
-            | Value a -> init a
-            | Error e -> error e
+            fun json ->
+                result, json
 
         let inline bind (m: Json<'a>) (f: 'a -> Json<'b>) : Json<'b> =
             fun json ->
@@ -404,42 +403,34 @@ module Mapping =
             Json.getLensPartial (idLens <-?> Json.BoolPIso)
 
         static member inline FromJson (_: decimal) =
-                decimal 
-            <!> Json.getLensPartial (numberPLens ())
+            decimal <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: float) =
             Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: int) =
-                int
-            <!> Json.getLensPartial (numberPLens ())
+            int <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: int16) =
-                int16
-            <!> Json.getLensPartial (numberPLens ())
+            int16 <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: int64) =
-                int64 
-            <!> Json.getLensPartial (numberPLens ())
+            int64 <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: single) =
-                single
-            <!> Json.getLensPartial (numberPLens ())
+            single <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: string) =
             Json.getLensPartial (idLens <-?> Json.StringPIso)
 
         static member inline FromJson (_: uint16) =
-                uint16 
-            <!> Json.getLensPartial (numberPLens ())
+            uint16 <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: uint32) =
-                uint32 
-            <!> Json.getLensPartial (numberPLens ())
+            uint32 <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: uint64) =
-                uint64 
-            <!> Json.getLensPartial (numberPLens ())
+            uint64 <!> Json.getLensPartial (numberPLens ())
 
     (* Mapping Functions
     
