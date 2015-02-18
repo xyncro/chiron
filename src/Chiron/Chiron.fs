@@ -76,6 +76,11 @@ module Functional =
             fun json ->
                 Error e, json
 
+        let inline internal ofResult result =
+            match result with
+            | Value a -> init a
+            | Error e -> error e
+
         let inline bind (m: Json<'a>) (f: 'a -> Json<'b>) : Json<'b> =
             fun json ->
                 match m json with
@@ -188,13 +193,8 @@ module Lens =
         let getLensPartial l : Json<_> =
             fun json ->
                 match Lens.getPartial l json with
-                | Some x ->
-                    printfn "json: %A" json
-                    printfn "x: %A" x
-                    Value x, json
-                | _ ->
-                    printfn "json error: %A" json
-                    Error "", json
+                | Some x -> Value x, json
+                | _ -> Error "", json
 
         let tryGetLensPartial l : Json<_> =
             fun json ->
@@ -374,51 +374,72 @@ module Mapping =
 
     open Operators
 
+    (* Lenses
+
+       Common lenses and lens functions for mapping. *)
+
+    let inline internal arrayPLens _ =
+        idLens <-?> Json.ArrayPIso
+
+    let inline internal numberPLens _ =
+        idLens <-?> Json.NumberPIso
+
+    let inline internal objectPLens _ =
+        idLens <-?> Json.ObjectPIso
+
+    let inline internal objectKeyPLens key =
+        objectPLens () >??> mapPLens key
+
     (* From
 
        Default conversion functions (static members on FromJsonDefaults)
        and statically inferred inline conversion functions for conversion
        from Json to F# data structures. *)
 
-    let inline internal get iso =
-        Json.getLensPartial (idLens <-?> iso)
-
     (* Defaults *)
 
     type FromJsonDefaults = FromJsonDefaults with
 
         static member inline FromJson (_: bool) =
-            get Json.BoolPIso
+            Json.getLensPartial (idLens <-?> Json.BoolPIso)
 
         static member inline FromJson (_: decimal) =
-            decimal <!> get Json.NumberPIso
+                decimal 
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: float) =
-            get Json.NumberPIso
+            Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: int) =
-            int <!> get Json.NumberPIso
+                int
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: int16) =
-            int16 <!> get Json.NumberPIso
+                int16
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: int64) =
-            int64 <!> get Json.NumberPIso
+                int64 
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: single) =
-            single <!> get Json.NumberPIso
+                single
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: string) =
-            get Json.StringPIso
+            Json.getLensPartial (idLens <-?> Json.StringPIso)
 
         static member inline FromJson (_: uint16) =
-            uint16 <!> get Json.NumberPIso
+                uint16 
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: uint32) =
-            uint32 <!> get Json.NumberPIso
+                uint32 
+            <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: uint64) =
-            uint64 <!> get Json.NumberPIso
+                uint64 
+            <!> Json.getLensPartial (numberPLens ())
 
     (* Mapping Functions
     
@@ -430,9 +451,9 @@ module Mapping =
         ((^a or ^b) : (static member FromJson: ^a -> ^a Json) a)
 
     let inline internal fromJson x : Json<'a> =
-        fun json -> fst (fromJsonDefaults (Unchecked.defaultof<'a>, FromJsonDefaults) x), json
+        Json.ofResult (fst (fromJsonDefaults (Unchecked.defaultof<'a>, FromJsonDefaults) x))
 
-    let inline internal foldFromJson e f xs =
+    let inline internal fromJsonFold init fold xs =
         fun json ->
             List.fold (fun (r, _) x ->
                 match r with
@@ -440,8 +461,8 @@ module Mapping =
                     Error e, json
                 | Value xs ->
                     match fromJson x json with
-                    | Value x, _ -> Value (f x xs), json
-                    | Error e, _ -> Error e, json) (Value e, json) (List.rev xs)
+                    | Value x, _ -> Value (fold x xs), json
+                    | Error e, _ -> Error e, json) (Value init, json) (List.rev xs)
 
     (* Defaults *)
 
@@ -450,58 +471,56 @@ module Mapping =
         (* Arrays *)
 
         static member inline FromJson (_: 'a array) : Json<'a array> =
-                Json.getLens idLens
-            >=> function | Array x -> foldFromJson [||] (fun x xs -> Array.append [| x |] xs) x
-                         | _ -> Json.error "array"
+                fromJsonFold Array.empty (fun x xs -> Array.append [| x |] xs)
+            <=< Json.getLensPartial (arrayPLens ()) 
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
-                Json.getLens idLens
-            >=> function | Array x -> foldFromJson [] (fun x xs -> x :: xs) x
-                         | _ -> Json.error "list"
+                fromJsonFold List.empty (fun x xs -> x :: xs)
+            <=< Json.getLensPartial (arrayPLens ())
 
         (* Maps *)
 
         static member inline FromJson (_: Map<string,'a>) : Json<Map<string,'a>> =
-                Json.getLens idLens
-            >=> function | Object x ->
-                            let k, v = (Map.toList >> List.unzip) x
-                            List.zip k >> Map.ofList <!> foldFromJson [] (fun x xs -> x :: xs) v
-                         | _ -> Json.error "map"
+                fun x ->
+                    let k, v = (Map.toList >> List.unzip) x
+                    List.zip k >> Map.ofList <!> fromJsonFold [] (fun x xs -> x :: xs) v
+            <=< Json.getLensPartial (objectPLens ())
 
         (* Sets *)
 
         static member inline FromJson (_: Set<'a>) : Json<Set<'a>> =
-                Json.getLens idLens
-            >=> function | Array x -> foldFromJson Set.empty Set.add x
-                         | _ -> Json.error "set"
+                fromJsonFold Set.empty Set.add
+            <=< Json.getLensPartial (arrayPLens ())
 
         (* Options *)
 
         static member inline FromJson (_: 'a option) : Json<'a option> =
-                Json.getLens idLens
-            >=> function | Null _ -> Json.init None
+                function | Null _ -> Json.init None
                          | x -> Some <!> fromJson x
+            <=< Json.getLens idLens
 
         (* Tuples *)
 
         static member inline FromJson (_: 'a * 'b) : Json<'a * 'b> =
-                Json.getLens idLens
-            >=> function | Array (a :: b :: []) ->
+                function | a :: b :: [] ->
                                 fun a b -> a, b
                             <!> fromJson a 
                             <*> fromJson b
-                         | _ -> Json.error "tuple2"
+                         | _ ->
+                            Json.error "tuple2"
+            <=< Json.getLensPartial (arrayPLens ())
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
-                Json.getLens idLens
-            >=> function | Array (a :: b :: c :: []) ->
+                function | a :: b :: c :: [] ->
                                 fun a b c -> a, b, c
                             <!> fromJson a 
                             <*> fromJson b
                             <*> fromJson c
-                         | _ -> Json.error "tuple3"
+                         | _ ->
+                            Json.error "tuple3"
+            <=< Json.getLensPartial (arrayPLens ())
 
     (* Functions
 
@@ -510,23 +529,16 @@ module Mapping =
     [<RequireQualifiedAccess>]
     module Json =
         
-        let inline internal lens key =
-                 idLens 
-            <-?> Json.ObjectPIso 
-            >??> mapPLens key
-
         (* Read *)
 
         let inline read key =
-                printfn "read: %s" key
-
-                Json.getLensPartial (lens key) 
-            >=> fromJson
+                fromJson
+            <=< Json.getLensPartial (objectKeyPLens key) 
 
         let inline tryRead key =
-                Json.tryGetLensPartial (lens key)
-            >=> function | Some json -> Some <!> fromJson json
+                function | Some json -> Some <!> fromJson json
                          | _ -> Json.init None
+            <=< Json.tryGetLensPartial (objectKeyPLens key)
 
         (* Deserialization *)
 
