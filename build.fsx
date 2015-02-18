@@ -23,7 +23,7 @@ Target "Publish" (fun _ ->
         { p with
               Authors = [ "Andrew Cherry" ]
               Project = "Chiron"
-              Version = "0.1.4-alpha"
+              Version = "0.1.5-alpha"
               AccessKey = getBuildParamOrDefault "nuget_key" ""
               Publish = hasBuildParam "nuget_key"
               Dependencies =
