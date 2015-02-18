@@ -7,4 +7,5 @@ NUGET
     FSharp.Core (3.1.2.1)
     NuGet.CommandLine (2.8.3)
     NUnit (2.6.4)
+    NUnit.Runners (2.6.4)
     Unquote (2.2.2)
