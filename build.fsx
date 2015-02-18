@@ -35,6 +35,7 @@ Target "Test" (fun _ ->
             { x with
                 DisableShadowCopy = true
                 TimeOut = TimeSpan.FromMinutes 20.
+                ToolPath = "packages/NUnit.Runners/tools"
                 OutputFile = "temp/TestResults.xml" }) 
             [ "tests/Chiron.Tests/bin/Release/Chiron.Tests.dll" ]
     finally
