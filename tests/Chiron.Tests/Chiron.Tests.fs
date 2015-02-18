@@ -19,11 +19,6 @@ let private t2 =
         [ "bool", Bool false
           "number", Number 2. ])
 
-let private t3 =
-    Object (Map.ofList
-        [ "bool", Bool true
-          "number", Number 4. ])
-
 (* Functional
 
    Tests to exercise the basic functional components of the Json<'a>
@@ -96,3 +91,94 @@ let ``Json.mapLens returns correct values`` () =
 [<Test>]
 let ``Json.mapLensPartial returns correct values`` () =
     Json.mapLensPartial lens not t1 =? (Value (), t2)
+
+(* Mapping
+
+   Tests exercising mapping functions between Json and other F#
+   data structures. *)
+
+[<Test>]
+let ``Json.deserialize simple types returns correct values`` () =
+
+    (* Boolean *)
+
+    Json.deserialize (Bool true) =? true
+
+    (* Numeric *)
+
+    Json.deserialize (Number 42.) =? decimal 42
+    Json.deserialize (Number 42.) =? float 42
+    Json.deserialize (Number 42.) =? int 42
+    Json.deserialize (Number 42.) =? int16 42
+    Json.deserialize (Number 42.) =? int64 42
+    Json.deserialize (Number 42.) =? single 42
+    Json.deserialize (Number 42.) =? uint16 42
+    Json.deserialize (Number 42.) =? uint32 42
+    Json.deserialize (Number 42.) =? uint64 42
+
+    (* String *)
+
+    Json.deserialize (String "hello") =? "hello"
+
+[<Test>]
+let ``Json.deserialize complex types returns correct values`` () =
+
+    (* Arrays *)
+
+    Json.deserialize (Array [ String "hello"; String "world"])
+        =? [| "hello"; "world" |]
+
+    (* Lists *)
+
+    Json.deserialize (Array [ String "hello"; String "world"])
+        =? [ "hello"; "world" ]
+
+    (* Maps *)
+
+    Json.deserialize (
+        Object (Map.ofList
+            [ "one", Number 1.
+              "two", Number 2. ]))
+        =? Map.ofList [ "one", 1; "two", 2 ]
+
+    (* Sets *)
+
+    Json.deserialize (Array [ String "one"; String "two" ])
+        =? set [ "one"; "two" ]
+
+    (* Options *)
+
+    Json.deserialize (String "hello")
+        =? Some "hello"
+
+    (* Tuples *)
+
+    Json.deserialize (Array [ String "hello"; Number 42. ])
+        =? ("hello", 42)
+
+type Test =
+    { String: string
+      Number : int option
+      Values: bool list }
+
+    static member FromJson (_: Test) =
+            fun s n v ->
+                { String = s
+                  Number = n
+                  Values = v }
+        <!> Json.read "string"
+        <*> Json.read "number"
+        <*> Json.read "values"
+
+[<Test>]
+let ``Json.deserialize with custom typed returns correct values`` () =
+    let json =
+        Object (Map.ofList
+            [ "string", String "hello"
+              "number", Number 42.
+              "values", Array [ Bool true; Bool false ] ])
+
+    Json.deserialize json
+        =? { String = "hello"
+             Number = Some 42
+             Values = [ true; false ] }

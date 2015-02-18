@@ -188,8 +188,13 @@ module Lens =
         let getLensPartial l : Json<_> =
             fun json ->
                 match Lens.getPartial l json with
-                | Some x -> Value x, json
-                | _ -> Error "", json
+                | Some x ->
+                    printfn "json: %A" json
+                    printfn "x: %A" x
+                    Value x, json
+                | _ ->
+                    printfn "json error: %A" json
+                    Error "", json
 
         let tryGetLensPartial l : Json<_> =
             fun json ->
@@ -425,7 +430,7 @@ module Mapping =
         ((^a or ^b) : (static member FromJson: ^a -> ^a Json) a)
 
     let inline internal fromJson x : Json<'a> =
-        fun _ -> fromJsonDefaults (Unchecked.defaultof<'a>, FromJsonDefaults) x
+        fun json -> fst (fromJsonDefaults (Unchecked.defaultof<'a>, FromJsonDefaults) x), json
 
     let inline internal foldFromJson e f xs =
         fun json ->
@@ -436,7 +441,7 @@ module Mapping =
                 | Value xs ->
                     match fromJson x json with
                     | Value x, _ -> Value (f x xs), json
-                    | Error e, _ -> Error e, json) (Value e, json) xs
+                    | Error e, _ -> Error e, json) (Value e, json) (List.rev xs)
 
     (* Defaults *)
 
@@ -447,14 +452,14 @@ module Mapping =
         static member inline FromJson (_: 'a array) : Json<'a array> =
                 Json.getLens idLens
             >=> function | Array x -> foldFromJson [||] (fun x xs -> Array.append [| x |] xs) x
-                         | _ -> Json.error ""
+                         | _ -> Json.error "array"
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
                 Json.getLens idLens
             >=> function | Array x -> foldFromJson [] (fun x xs -> x :: xs) x
-                         | _ -> Json.error ""
+                         | _ -> Json.error "list"
 
         (* Maps *)
 
@@ -463,14 +468,14 @@ module Mapping =
             >=> function | Object x ->
                             let k, v = (Map.toList >> List.unzip) x
                             List.zip k >> Map.ofList <!> foldFromJson [] (fun x xs -> x :: xs) v
-                         | _ -> Json.error ""
+                         | _ -> Json.error "map"
 
         (* Sets *)
 
         static member inline FromJson (_: Set<'a>) : Json<Set<'a>> =
                 Json.getLens idLens
             >=> function | Array x -> foldFromJson Set.empty Set.add x
-                         | _ -> Json.error ""
+                         | _ -> Json.error "set"
 
         (* Options *)
 
@@ -487,7 +492,7 @@ module Mapping =
                                 fun a b -> a, b
                             <!> fromJson a 
                             <*> fromJson b
-                         | _ -> Json.error ""
+                         | _ -> Json.error "tuple2"
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
                 Json.getLens idLens
@@ -496,7 +501,7 @@ module Mapping =
                             <!> fromJson a 
                             <*> fromJson b
                             <*> fromJson c
-                         | _ -> Json.error ""
+                         | _ -> Json.error "tuple3"
 
     (* Functions
 
@@ -513,6 +518,8 @@ module Mapping =
         (* Read *)
 
         let inline read key =
+                printfn "read: %s" key
+
                 Json.getLensPartial (lens key) 
             >=> fromJson
 
