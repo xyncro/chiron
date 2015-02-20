@@ -8,15 +8,16 @@ open FParsec
 (* Prelude *)
 
 [<RequireQualifiedAccess>]
-module internal DateTime =
+module DateTime =
 
-    let private epoch = DateTime (1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+    let inline internal epoch _ =
+        DateTime (1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
 
-    let fromUnix (x: float) =
-        epoch.AddSeconds (x)
+    let inline internal fromUnix (x: float) =
+        (epoch ()).AddSeconds (x)
 
-    let toUnix (x: DateTime) =
-        (x - epoch).TotalSeconds
+    let inline internal toUnix (x: DateTime) =
+        (x - (epoch ())).TotalSeconds
 
 (* Types
 
