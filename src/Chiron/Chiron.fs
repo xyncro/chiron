@@ -1,23 +1,10 @@
 ﻿module Chiron
 
 open System
+open System.Globalization
 open System.Text
 open Aether
 open FParsec
-
-(* Prelude *)
-
-[<RequireQualifiedAccess>]
-module DateTime =
-
-    let inline internal epoch _ =
-        DateTime (1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-
-    let inline internal fromUnix (x: float) =
-        (epoch ()).AddSeconds (x)
-
-    let inline internal toUnix (x: DateTime) =
-        (x - (epoch ())).TotalSeconds
 
 (* Types
 
@@ -524,7 +511,11 @@ module Mapping =
         (* Common Types *)
 
         static member inline FromJson (_: DateTime) =
-            DateTime.fromUnix <!> Json.getLensPartial (numberPLens ())
+                fun x ->
+                    match DateTime.TryParseExact (x, [| "r" |], null, DateTimeStyles.None) with
+                    | true, x -> Json.init x
+                    | _ -> Json.error "datetime"
+            =<< Json.getLensPartial (stringPLens ())
 
         static member inline FromJson (_: Guid) =
                 fun x ->
@@ -659,7 +650,7 @@ module Mapping =
         (* Common Types *)
 
         static member inline ToJson (x: DateTime) =
-            Json.setLensPartial (numberPLens ()) (DateTime.toUnix x)
+            Json.setLensPartial (stringPLens ()) (x.ToUniversalTime().ToString("r"))
 
         static member inline ToJson (x: Guid) =
             Json.setLensPartial (stringPLens ()) (string x)
