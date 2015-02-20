@@ -1,8 +1,22 @@
 ﻿module Chiron
 
+open System
 open System.Text
 open Aether
 open FParsec
+
+(* Prelude *)
+
+[<RequireQualifiedAccess>]
+module internal DateTime =
+
+    let private epoch = DateTime (1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+
+    let fromUnix (x: float) =
+        epoch.AddSeconds (x)
+
+    let toUnix (x: DateTime) =
+        (x - epoch).TotalSeconds
 
 (* Types
 
@@ -458,6 +472,9 @@ module Mapping =
     let inline internal objectKeyPLens key =
         objectPLens () >??> mapPLens key
 
+    let inline internal stringPLens _ =
+        idLens <-?> Json.StringPIso
+
     (* From
 
        Default conversion functions (static members on FromJsonDefaults)
@@ -467,6 +484,8 @@ module Mapping =
     (* Defaults *)
 
     type FromJsonDefaults = FromJsonDefaults with
+
+        (* Basic Types *)
 
         static member inline FromJson (_: bool) =
             Json.getLensPartial (boolPLens ())
@@ -490,7 +509,7 @@ module Mapping =
             single <!> Json.getLensPartial (numberPLens ())
 
         static member inline FromJson (_: string) =
-            Json.getLensPartial (idLens <-?> Json.StringPIso)
+            Json.getLensPartial (stringPLens ())
 
         static member inline FromJson (_: uint16) =
             uint16 <!> Json.getLensPartial (numberPLens ())
@@ -500,6 +519,18 @@ module Mapping =
 
         static member inline FromJson (_: uint64) =
             uint64 <!> Json.getLensPartial (numberPLens ())
+
+        (* Common Types *)
+
+        static member inline FromJson (_: DateTime) =
+            DateTime.fromUnix <!> Json.getLensPartial (numberPLens ())
+
+        static member inline FromJson (_: Guid) =
+                fun x ->
+                    match Guid.TryParse x with
+                    | true, x -> Json.init x
+                    | _ -> Json.error "guid"
+            =<< Json.getLensPartial (stringPLens ())
 
     (* Mapping Functions
 
@@ -589,6 +620,8 @@ module Mapping =
 
     type ToJsonDefaults = ToJsonDefaults with
 
+        (* Basic Types *)
+
         static member inline ToJson (x: bool) =
             Json.setLensPartial (boolPLens ()) x
 
@@ -611,7 +644,7 @@ module Mapping =
             Json.setLensPartial (numberPLens ()) (float x)
 
         static member inline ToJson (x: string) =
-            Json.setLensPartial (idLens <-?> Json.StringPIso) x
+            Json.setLensPartial (stringPLens ()) x
 
         static member inline ToJson (x: uint16) =
             Json.setLensPartial (numberPLens ()) (float x)
@@ -621,6 +654,14 @@ module Mapping =
 
         static member inline ToJson (x: uint64) =
             Json.setLensPartial (numberPLens ()) (float x)
+
+        (* Common Types *)
+
+        static member inline ToJson (x: DateTime) =
+            Json.setLensPartial (numberPLens ()) (DateTime.toUnix x)
+
+        static member inline ToJson (x: Guid) =
+            Json.setLensPartial (stringPLens ()) (string x)
 
     (* Mapping Functions
 
