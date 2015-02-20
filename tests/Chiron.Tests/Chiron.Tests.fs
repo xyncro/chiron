@@ -1,5 +1,6 @@
 ﻿module Chiron.Tests.Functional
 
+open System
 open Aether
 open Aether.Operators
 open Chiron
@@ -128,6 +129,10 @@ let ``Json.deserialize simple types returns correct values`` () =
 
     Json.deserialize (String "hello") =? "hello"
 
+    (* DateTime *)
+
+    Json.deserialize (String "Fri, 20 Feb 2015 14:36:21 GMT") =? DateTime (2015, 2, 20, 14, 36, 21)
+
 [<Test>]
 let ``Json.deserialize complex types returns correct values`` () =
 
@@ -216,6 +221,10 @@ let ``Json.serialize with simple types returns correct values`` () =
     Json.serialize (uint16 42) =? Number 42.
     Json.serialize (uint32 42) =? Number 42.
     Json.serialize (uint64 42) =? Number 42.
+
+    (* DateTime *)
+
+    Json.serialize (DateTime (2015, 2, 20, 14, 36, 21)) =? String "Fri, 20 Feb 2015 14:36:21 GMT"
 
 [<Test>]
 let ``Json.serialize with custom types returns correct values`` () =
