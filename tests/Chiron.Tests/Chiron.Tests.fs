@@ -229,3 +229,23 @@ let ``Json.serialize with simple types returns correct values`` () =
 [<Test>]
 let ``Json.serialize with custom types returns correct values`` () =
     Json.serialize testInstance =? testJson
+
+type TestUnion =
+    | One of string
+    | Two of int * bool
+
+    static member ToJson (x: TestUnion) =
+        match x with
+        | One (s) -> Json.write "one" s
+        | Two (i, b) -> Json.write "two" (i, b)
+
+let testUnion =
+    Two (42, true)
+
+let testUnionJson =
+    Object (Map.ofList
+        [ "two", Array [ Number 42.; Bool true ] ])
+
+[<Test>]
+let ``Json.serialize with union types remains tractable`` () =
+    Json.serialize testUnion =? testUnionJson

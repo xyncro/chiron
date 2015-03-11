@@ -6,6 +6,14 @@ open System.Text
 open Aether
 open FParsec
 
+(* RFC 7159
+
+   Types, parsers, formatters and other utilities implemented to mirror the
+   specification of JSON (JavaScript Object Notation Data Interchange Format)
+   as defined in RFC 7159.
+
+   Taken from [http://tools.ietf.org/html/rfc7159] *)
+
 (* Types
 
    Simple AST for JSON, with included isomorphisms in Aether format for
@@ -230,96 +238,178 @@ module Lens =
 [<AutoOpen>]
 module Parsing =
 
-    (* Conversion
+    (* Helpers
 
-       Functions for mapping escaped characters and strings to valid
-       values. *)
+       Utlility functions for working with intermediate states of
+       parsers, minimizing boilerplate and unpleasant code. *)
 
-    let private hexToInt x =
-        (int x &&& 15) + (int x >>> 6) * 9
+    let private emp =
+        function | Some x -> x
+                 | _ -> ""
 
-    let private hexString h3 h2 h1 h0 =
-          (hexToInt h3) * 4096
-        + (hexToInt h2) * 256
-        + (hexToInt h1) * 16
-        + (hexToInt h0)
-        |> char
-        |> string
+    (* Grammar
 
-    let private mapEsc =
-        function | 'c' -> "\b"
-                 | 'f' -> "\u000C"
-                 | 'n' -> "\n"
-                 | 'r' -> "\r"
-                 | 't' -> "\t"
-                 | c -> string c
+       Common grammatical elements forming parts of other parsers as
+       as defined in RFC 1759. The elements are implemented slightly
+       differently due to the design of parser combinators used, chiefly
+       concerning whitespace, which is always implemented as trailing.
 
-    let private plainEscP = 
-        anyOf "\"\\/bfnrt" |>> mapEsc
+       Taken from RFC 7159, Section 2 Grammar
+       See [http://tools.ietf.org/html/rfc7159#section-2] *)
 
-    let private unicodeEscP =
-        pchar 'u' >>. pipe4 hex hex hex hex hexString
+    let private wsp i =
+            i = 0x20
+         || i = 0x09
+         || i = 0x0a
+         || i = 0x0d
 
-    let private escP =
-        plainEscP <|> unicodeEscP
+    let private wspP =
+        skipManySatisfy (int >> wsp)
 
-    let private stringP =
-        manySatisfy (fun c -> c <> '"' && c <> '\\')
+    let private charWspP c =
+        skipChar c .>> wspP
 
-    let private quotedP =
-        between (skipChar '"') (skipChar '"')
+    let private beginArrayP =
+        charWspP '['
 
-    let private literalP =
-        quotedP (stringsSepBy stringP ((skipChar '\\') >>. escP))
+    let private beginObjectP =
+        charWspP '{'
 
-    (* Patterns
+    let private endArrayP =
+        charWspP ']'
 
-       Functions for parsing items within patterns, such as JSON lists
-       and JSON pairs. *)
+    let private endObjectP =
+        charWspP '}'
 
-    let private listItemP item =
-        item .>> spaces
+    let private nameSeparatorP =
+        charWspP ':'
 
-    let private listP o c item = 
-        between o c (spaces >>. sepBy (listItemP item) (skipChar ',' .>> spaces))
+    let private valueSeparatorP =
+        charWspP ','
 
-    let private pairP item = 
-        tuple2 literalP (spaces >>. pchar ':' >>. spaces >>. item)
+    (* JSON
 
-    (* Parsers
+       As the JSON grammar is recursive in various forms, we create a
+       reference parser which will be assigned later, allowing for recursive
+       definition of parsing rules. *)
 
-       Functions for parsing JSON values to Json typed objects, given valid
-       JSON data. *)
-
-    let private jsonP, jsonRefP = 
+    let private jsonP, jsonR =
         createParserForwardedToRef ()
 
-    let private jArrayP =
-        listP (skipChar '[') (skipChar ']') jsonP |>> Array
+    (* Values
 
-    let private jBoolP = 
-        (stringReturn "true" (Bool true)) <|> (stringReturn "false" (Bool false))
+       Taken from RFC 7159, Section 3 Values
+       See [http://tools.ietf.org/html/rfc7159#section-3] *)
 
-    let private jNullP = 
-        stringReturn "null" (Null ())
+    let private boolP =
+            stringReturn "true" true
+        <|> stringReturn "false" false
+        .>> wspP
 
-    let private jNumberP = 
-        pfloat |>> Number 
+    let private nullP =
+        stringReturn "null" () .>> wspP
 
-    let private jObjectP = 
-        listP (skipChar '{') (skipChar '}') (pairP jsonP) |>> (Map.ofList >> Object)
+    (* Numbers
 
-    let private jStringP = 
-        literalP |>> String
+       The numbers parser is implemented by parsing the JSON number value
+       in to a known representation valid as string under Double.Parse
+       natively (invoked as the float conversion function on the eventual
+       string).
 
-    do jsonRefP := 
+       Taken from RFC 7159, Section 6 Numbers
+       See [http://tools.ietf.org/html/rfc7159#section-6] *)
+
+    let private digit1to9 i =
+            i >= 0x31 && i <= 0x39
+
+    let private digit i =
+            digit1to9 i
+         || i = 0x30
+
+    let private e i =
+            i = 0x45 
+         || i = 0x65
+
+    let private minusP =
+        charReturn '-' "-"
+
+    let private intP =
+        charReturn '0' "0" <|> (satisfy (int >> digit1to9) .>>. manySatisfy (int >> digit)
+        |>> fun (h, t) -> string h + t)
+
+    let private fracP =
+        skipChar '.' >>.  many1Satisfy (int >> digit)
+        |>> fun i -> "." + i
+
+    let private expP =
+            skipSatisfy (int >> e)
+        >>. opt (charReturn '-' "-" <|> charReturn '+' "+")
+        .>>. many1Satisfy (int >> digit)
+        |>> function | Some s, d -> "e" + s + d
+                     | _, d -> "e" + d
+
+    let private numberP =
+        pipe4 (opt minusP) intP (opt fracP) (opt expP) (fun m i f e ->
+            float (emp m + i + emp f + emp e)) .>> wspP
+
+    (* Strings
+
+       Taken from RFC 7159, Section 7 Strings
+       See [http://tools.ietf.org/html/rfc7159#section-7] *)
+
+    let private unescaped i =
+            i >= 0x20 && i <= 0x21
+         || i >= 0x23 && i <= 0x5b
+         || i >= 0x5d && i <= 0x10ffff
+
+    let private unescapedP =
+        satisfy (int >> unescaped)
+
+    let private quotationMarkP =
+        skipChar '"'
+
+    //let private escapeP =
+    //    skipChar '\\'
+
+    let private charP =
         choice [
-            jObjectP
-            jArrayP
-            jStringP
-            jBoolP
-            jNumberP
-            jNullP ]
+            unescapedP ]
+
+    let private stringP =
+        between quotationMarkP quotationMarkP (many charP) .>> wspP
+        |>> fun cs -> new string (List.toArray cs)
+
+    (* Objects
+
+       Taken from RFC 7159, Section 4 Objects
+       See [http://tools.ietf.org/html/rfc7159#section-4] *)
+
+    let private memberP =
+        stringP .>> nameSeparatorP .>>. jsonP
+
+    let private objectP =
+        between beginObjectP endObjectP (sepBy memberP valueSeparatorP)
+        |>> Map.ofList
+
+    (* Arrays
+
+       Taken from RFC 7159, Section 5 Arrays
+       See [http://tools.ietf.org/html/rfc7159#section-5] *)
+
+    let private arrayP =
+        between beginArrayP endArrayP (sepBy jsonP valueSeparatorP)
+
+    (* JSON *)
+
+    do jsonR :=
+            wspP
+        >>. choice [
+                arrayP  |>> Array
+                boolP   |>> Bool
+                nullP   |>> Null
+                numberP |>> Number
+                objectP |>> Object
+                stringP |>> String ]
 
     (* Functions
 
@@ -399,8 +489,6 @@ module Formatting =
         function | true -> append "true"
                  | _ -> append "false"
 
-    // TODO: Better number formatting!
-
     and private formatNumber =
         function | x -> append (string x)
 
@@ -410,7 +498,9 @@ module Formatting =
     and private formatObject =
         function | x -> 
                        append "{" 
-                    >> join (fun (k, v) -> appendf "\"{0}\":" k >> formatJson v) (append ",") (Map.toList x) 
+                    >> join (fun (k, v) -> appendf "\"{0}\":" k >> formatJson v)
+                            (append ",")
+                            (Map.toList x) 
                     >> append "}"
 
     and private formatString =
@@ -698,10 +788,10 @@ module Mapping =
 
         (* Tuples *)
 
-        static member inline ToJson (a: 'a, b: 'b) =
+        static member inline ToJson ((a, b)) =
             Json.setLens idLens (Array [ toJson a; toJson b ])
 
-        static member inline ToJson (a: 'a, b: 'b, c: 'c) =
+        static member inline ToJson ((a, b, c)) =
             Json.setLens idLens (Array [ toJson a; toJson b; toJson c ])
 
     (* Functions
