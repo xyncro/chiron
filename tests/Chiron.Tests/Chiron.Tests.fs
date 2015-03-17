@@ -95,11 +95,31 @@ let ``Json.mapLensPartial returns correct values`` () =
 
 (* Parsing *)
 
+[<Test>]
+let ``Json.parse returns correct values`` () =
+    Json.parse "\"hello\"" =? String "hello"
+    Json.parse "\"\"" =? String ""
+    Json.parse "\"\\n\"" =? String "\n"
+    Json.parse "\"\\u005c\"" =? String "\\"
+    Json.parse "\"푟\"" =? String "푟"
+
 (* Formatting *)
 
 [<Test>]
 let ``Json.format returns correct values`` () =
+    (* String *)
+    Json.format <| String "hello" =? "\"hello\""
+
+    (* Awkward string *)
+    Json.format <| String "he\nllo" =? "\"he\\nllo\""
+
+    (* Complex type *)
     Json.format t1 =? """{"bool":true,"number":2}"""
+
+    Json.format (String "hello") =? "\"hello\""
+    Json.format (String "") =? "\"\""
+    Json.format (String "푟") =? "\"푟\""
+    Json.format (String "\t") =? "\"\t\""
 
 (* Mapping
 
@@ -226,6 +246,29 @@ let ``Json.serialize with simple types returns correct values`` () =
 
     Json.serialize (DateTime (2015, 2, 20, 14, 36, 21)) =? String "Fri, 20 Feb 2015 14:36:21 GMT"
 
+    (* String *)
+    Json.serialize "hello" =? String "hello"
+
 [<Test>]
 let ``Json.serialize with custom types returns correct values`` () =
     Json.serialize testInstance =? testJson
+
+type TestUnion =
+    | One of string
+    | Two of int * bool
+
+    static member ToJson (x: TestUnion) =
+        match x with
+        | One (s) -> Json.write "one" s
+        | Two (i, b) -> Json.write "two" (i, b)
+
+let testUnion =
+    Two (42, true)
+
+let testUnionJson =
+    Object (Map.ofList
+        [ "two", Array [ Number 42.; Bool true ] ])
+
+[<Test>]
+let ``Json.serialize with union types remains tractable`` () =
+    Json.serialize testUnion =? testUnionJson
