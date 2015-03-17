@@ -226,6 +226,78 @@ module Lens =
             fun json ->
                 Value (), Lens.mapPartial l f json
 
+(* Escaping
+
+   Functions for escaped string parsing and formatting, as a
+   minimal encoding function (escaping only disallowed codepoints,
+   but normalizing any input). *)
+
+[<RequireQualifiedAccess>]
+module internal Escaping =
+
+    let private digit i =
+        (i >= 0x30 && i <= 0x39)
+
+    let private hexdig i =
+        (digit i)
+     || (i >= 0x41 && i <= 0x46)
+     || (i >= 0x61 && i <= 0x66)
+
+    let private unescaped i =
+            i >= 0x20 && i <= 0x21
+         || i >= 0x23 && i <= 0x5b
+         || i >= 0x5d && i <= 0x10ffff
+
+    let private unescapedP =
+        satisfy (int >> unescaped)
+
+    let private hexdig4P =
+        manyMinMaxSatisfy 4 4 (int >> hexdig)
+        |>> fun s ->
+            char (Int32.Parse (s, NumberStyles.HexNumber))
+
+    let private escapedP =
+            skipChar '\\'
+        >>. choice [
+                pchar '"'
+                pchar '\\'
+                pchar '/'
+                skipChar 'b' >>% '\u0008'
+                skipChar 'f' >>% '\u000c'
+                skipChar 'n' >>% '\u000a'
+                skipChar 'r' >>% '\u000d'
+                skipChar 't' >>% '\u0009'
+                skipChar 'u' >>. hexdig4P ]
+
+    let private charP =
+        choice [
+            unescapedP
+            escapedP ]
+
+    let parse =
+        many charP
+
+    let escape (s: string) =
+        let rec escape r =
+            function | [] -> r
+                     | h :: t when (unescaped (int h)) ->
+                        escape (r @ [ h ]) t
+                     | h :: t ->
+                        let n =
+                            match h with
+                            | '"' -> [ '\\'; '"' ]
+                            | '\\' -> [ '\\'; '\\' ]
+                            | '\b' -> [ '\\'; 'b' ]
+                            | '\f' -> [ '\\'; 'f' ]
+                            | '\n' -> [ '\\'; 'n' ]
+                            | '\r' -> [ '\\'; 'r' ]
+                            | '\t' -> [ '\\'; 't' ]
+                            | x -> [ '\\'; 'u' ] @ [ for c in ((int x).ToString ("X4")) -> c ]
+
+                        escape (r @ n) t
+
+        new string (List.toArray (escape [ for c in s -> c ] []))
+
 (* Parsing
 
    Functions for parsing string JSON data to Json types, using
@@ -357,26 +429,11 @@ module Parsing =
        Taken from RFC 7159, Section 7 Strings
        See [http://tools.ietf.org/html/rfc7159#section-7] *)
 
-    let private unescaped i =
-            i >= 0x20 && i <= 0x21
-         || i >= 0x23 && i <= 0x5b
-         || i >= 0x5d && i <= 0x10ffff
-
-    let private unescapedP =
-        satisfy (int >> unescaped)
-
     let private quotationMarkP =
         skipChar '"'
 
-    //let private escapeP =
-    //    skipChar '\\'
-
-    let private charP =
-        choice [
-            unescapedP ]
-
     let private stringP =
-        between quotationMarkP quotationMarkP (many charP) .>> wspP
+        between quotationMarkP quotationMarkP Escaping.parse .>> wspP
         |>> fun cs -> new string (List.toArray cs)
 
     (* Objects
@@ -504,7 +561,7 @@ module Formatting =
                     >> append "}"
 
     and private formatString =
-        function | x -> appendf "\"{0}\"" x
+        function | x -> appendf "\"{0}\"" (Escaping.escape x)
 
     (* Functions *)
 

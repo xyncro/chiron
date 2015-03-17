@@ -95,11 +95,24 @@ let ``Json.mapLensPartial returns correct values`` () =
 
 (* Parsing *)
 
+[<Test>]
+let ``Json.parse returns correct values`` () =
+    Json.parse "\"hello\"" =? String "hello"
+    Json.parse "\"\"" =? String ""
+    Json.parse "\"\\n\"" =? String "\n"
+    Json.parse "\"\\u005c\"" =? String "\\"
+    Json.parse "\"푟\"" =? String "푟"
+
 (* Formatting *)
 
 [<Test>]
 let ``Json.format returns correct values`` () =
     Json.format t1 =? """{"bool":true,"number":2}"""
+
+    Json.format (String "hello") =? "\"hello\""
+    Json.format (String "") =? "\"\""
+    Json.format (String "푟") =? "\"푟\""
+    Json.format (String "\t") =? "\"\t\""
 
 (* Mapping
 
