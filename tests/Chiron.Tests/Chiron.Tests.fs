@@ -107,6 +107,13 @@ let ``Json.parse returns correct values`` () =
 
 [<Test>]
 let ``Json.format returns correct values`` () =
+    (* String *)
+    Json.format <| String "hello" =? "\"hello\""
+
+    (* Awkward string *)
+    Json.format <| String "he\nllo" =? "\"he\\nllo\""
+
+    (* Complex type *)
     Json.format t1 =? """{"bool":true,"number":2}"""
 
     Json.format (String "hello") =? "\"hello\""
@@ -238,6 +245,9 @@ let ``Json.serialize with simple types returns correct values`` () =
     (* DateTime *)
 
     Json.serialize (DateTime (2015, 2, 20, 14, 36, 21)) =? String "Fri, 20 Feb 2015 14:36:21 GMT"
+
+    (* String *)
+    Json.serialize "hello" =? String "hello"
 
 [<Test>]
 let ``Json.serialize with custom types returns correct values`` () =
