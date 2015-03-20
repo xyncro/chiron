@@ -540,6 +540,8 @@ module Formatting =
             | '\r' -> @"\r"
             | '\t' -> @"\t"
             | '\v' -> @"\v"
+            | c when Char.IsControl c ->
+                String.Format("\\u{0:X4}", int c)
             | c -> string c )
         |> String.concat ""
 
