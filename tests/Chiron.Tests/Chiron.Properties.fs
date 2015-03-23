@@ -29,11 +29,14 @@ let inline roundTrip (thing : 'a) : 'a =
 
 type ChironProperties =
     static member ``Strings can be roundtripped`` (str : string) =
-        roundTrip str = str
-    static member ``Date times can be roundtripped`` (tr : System.DateTime) =
-        roundTrip tr = tr
+        let sut = roundTrip str
+        sut = str |@ sprintf "(%A should equal %A)" sut str
+    static member ``Date times can be roundtripped`` (dt : System.DateTime) =
+        let sut = roundTrip dt
+        sut = dt |@ sprintf "(%A should equal %A)" sut dt
     static member ``Records can be roundtripped`` (tr : TestRecord) =
-        roundTrip tr = tr
+        let sut = roundTrip tr
+        sut = tr |@ sprintf "(%A should equal %A)" sut tr
 
 type SafeString =
     static member SafeString () =
