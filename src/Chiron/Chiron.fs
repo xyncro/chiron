@@ -296,7 +296,7 @@ module internal Escaping =
 
                         escape (r @ n) t
 
-        new string (List.toArray (escape [ for c in s -> c ] []))
+        new string (List.toArray (escape [] [ for c in s -> c ]))
 
 (* Parsing
 
@@ -527,21 +527,6 @@ module Formatting =
         join
 
     (* Formatters *)
-
-    let rec safeString str =
-        str
-        |> Seq.map (fun c ->
-            match c with
-            | '"' -> "\\\""
-            | '\\' -> @"\\"
-            | '\n' -> @"\n"
-            | '\b' -> @"\b"
-            | '\f' -> @"\f"
-            | '\r' -> @"\r"
-            | '\t' -> @"\t"
-            | '\v' -> @"\v"
-            | c -> string c )
-        |> String.concat ""
 
     let rec private formatJson =
         function | Array x -> formatArray x

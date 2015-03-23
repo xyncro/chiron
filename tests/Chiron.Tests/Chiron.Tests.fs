@@ -119,7 +119,7 @@ let ``Json.format returns correct values`` () =
     Json.format (String "hello") =? "\"hello\""
     Json.format (String "") =? "\"\""
     Json.format (String "푟") =? "\"푟\""
-    Json.format (String "\t") =? "\"\t\""
+    Json.format (String "\t") =? "\"\\t\""
 
 (* Mapping
 
