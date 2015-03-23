@@ -659,7 +659,7 @@ module Mapping =
 
         static member inline FromJson (_: DateTime) =
                 fun x ->
-                    match DateTime.TryParseExact (x, [| "r" |], null, DateTimeStyles.None) with
+                    match DateTime.TryParseExact (x, [| "r" |], null, DateTimeStyles.AssumeUniversal) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetime"
             =<< Json.getLensPartial (stringPLens ())
