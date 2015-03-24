@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -e
 if [[ ! -f .paket/paket.exe ]]; then
   mono .paket/paket.bootstrapper.exe
