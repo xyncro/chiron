@@ -592,31 +592,23 @@ module Mapping =
 
        Common lenses and lens functions for mapping. *)
 
-    let inline internal arrayPLens _ =
+    let inline arrayPLens _ =
         idLens <-?> Json.ArrayPIso
 
-    let inline internal boolPLens _ =
+    let inline boolPLens _ =
         idLens <-?> Json.BoolPIso
 
-    let inline internal numberPLens _ =
+    let inline numberPLens _ =
         idLens <-?> Json.NumberPIso
 
-    let inline internal objectPLens _ =
+    let inline objectPLens _ =
         idLens <-?> Json.ObjectPIso
 
-    let inline internal objectKeyPLens key =
+    let inline objectKeyPLens key =
         objectPLens () >??> mapPLens key
 
-    let inline internal stringPLens _ =
+    let inline stringPLens _ =
         idLens <-?> Json.StringPIso
-
-    (* From
-
-       Default conversion functions (static members on FromJsonDefaults)
-       and statically inferred inline conversion functions for conversion
-       from Json to F# data structures. *)
-
-    (* Defaults *)
 
     let (<%>) (l : PLens<Json, 'a>) (f, fMsg) : Json<'b> =
       fun x ->
@@ -629,6 +621,14 @@ module Mapping =
             match m x with
             | Error e, json -> (l <%> (f, fMsg)) json
             | Value v, json -> Value v, json
+
+    (* From
+
+       Default conversion functions (static members on FromJsonDefaults)
+       and statically inferred inline conversion functions for conversion
+       from Json to F# data structures. *)
+
+    (* Defaults *)
 
     type FromJsonDefaults = FromJsonDefaults with
 
