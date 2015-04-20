@@ -659,9 +659,16 @@ module Mapping =
 
         static member inline FromJson (_: DateTime) =
                 fun x ->
-                    match DateTime.TryParseExact (x, [| "r" |], null, DateTimeStyles.AssumeUniversal) with
+                    match DateTime.TryParseExact (x, [| "s"; "r"; "o" |], null, DateTimeStyles.AdjustToUniversal) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetime"
+            =<< Json.getLensPartial (stringPLens ())
+
+        static member inline FromJson (_: DateTimeOffset) =
+                fun x ->
+                    match DateTimeOffset.TryParseExact (x, [|"yyyy-MM-dd'T'HH:mm:ss.FFFK" |], null, DateTimeStyles.None) with
+                    | true, x -> Json.init x
+                    | _ -> Json.error "datetimeoffset"
             =<< Json.getLensPartial (stringPLens ())
 
         static member inline FromJson (_: Guid) =
@@ -797,7 +804,10 @@ module Mapping =
         (* Common Types *)
 
         static member inline ToJson (x: DateTime) =
-            Json.setLensPartial (stringPLens ()) (x.ToUniversalTime().ToString("r"))
+            Json.setLensPartial (stringPLens ()) (x.ToUniversalTime().ToString("o"))
+        
+        static member inline ToJson (x: DateTimeOffset) =
+            Json.setLensPartial (stringPLens ()) (x.ToString("o"))
 
         static member inline ToJson (x: Guid) =
             Json.setLensPartial (stringPLens ()) (string x)

@@ -151,7 +151,8 @@ let ``Json.deserialize simple types returns correct values`` () =
 
     (* DateTime *)
 
-    Json.deserialize (String "Fri, 20 Feb 2015 14:36:21 GMT") =? DateTime (2015, 2, 20, 14, 36, 21)
+    Json.deserialize (String "Fri, 20 Feb 2015 14:36:21 GMT") =? DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)
+    Json.deserialize (String "2015-04-15T13:45:55Z") =? DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero)
 
 [<Test>]
 let ``Json.deserialize complex types returns correct values`` () =
@@ -244,7 +245,8 @@ let ``Json.serialize with simple types returns correct values`` () =
 
     (* DateTime *)
 
-    Json.serialize (DateTime (2015, 2, 20, 14, 36, 21)) =? String "Fri, 20 Feb 2015 14:36:21 GMT"
+    Json.serialize (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)) =? String "2015-02-20T14:36:21.0000000Z"
+    Json.serialize (DateTimeOffset (2015, 2, 20, 14, 36, 21, TimeSpan.Zero)) =? String "2015-02-20T14:36:21.0000000+00:00"
 
     (* String *)
     Json.serialize "hello" =? String "hello"

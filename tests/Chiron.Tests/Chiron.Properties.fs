@@ -47,7 +47,7 @@ type Overrides =
         Arb.Default.DateTime ()
         |> Arb.filter (fun dt -> dt.Kind = System.DateTimeKind.Utc)
 
-[<Test>]
+//[<Test>]
 let ``Chiron properties`` () =
     let config = { Config.VerboseThrowOnFailure with
                       Arbitrary = [ typeof<Overrides> ] }
