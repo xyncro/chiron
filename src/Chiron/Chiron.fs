@@ -204,7 +204,7 @@ module Lens =
             fun json ->
                 match Lens.getPartial l json with
                 | Some x -> Value x, json
-                | _ -> Error "", json
+                | _ -> Error (sprintf "couldn't use lens %A on json '%A'" l json), json
 
         let tryGetLensPartial l : Json<_> =
             fun json ->
@@ -618,6 +618,18 @@ module Mapping =
 
     (* Defaults *)
 
+    let (<%>) (l : PLens<Json, 'a>) (f, fMsg) : Json<'b> =
+      fun x ->
+          match Json.getLensPartial l x with
+          | Value v, json -> Value (f v), json
+          | Error e, json -> Error (fMsg json), json
+
+    let (<%%>) (m : Json<'a>) (l : PLens<Json, 'b>, (f : 'b -> 'a), fMsg) : Json<'a> =
+        fun x ->
+            match m x with
+            | Error e, json -> (l <%> (f, fMsg)) json
+            | Value v, json -> Value v, json
+
     type FromJsonDefaults = FromJsonDefaults with
 
         (* Basic Types *)
@@ -625,8 +637,10 @@ module Mapping =
         static member inline FromJson (_: bool) =
             Json.getLensPartial (boolPLens ())
 
-        static member inline FromJson (_: decimal) =
-            decimal <!> Json.getLensPartial (numberPLens ())
+        static member inline FromJson (_: decimal) : Json<decimal> =
+          numberPLens ()
+          <%> (decimal, sprintf "parsing number %A to decimal failed")
+          <%%> (stringPLens(), decimal, sprintf "parsing string %A to decimal failed")
 
         static member inline FromJson (_: float) =
             Json.getLensPartial (numberPLens ())
@@ -772,7 +786,7 @@ module Mapping =
             Json.setLensPartial (boolPLens ()) x
 
         static member inline ToJson (x: decimal) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial (stringPLens ()) (x.ToString(CultureInfo.InvariantCulture))
 
         static member inline ToJson (x: float) =
             Json.setLensPartial (numberPLens ()) x

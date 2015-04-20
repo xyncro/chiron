@@ -145,6 +145,10 @@ let ``Json.deserialize simple types returns correct values`` () =
     Json.deserialize (Number 42.) =? uint32 42
     Json.deserialize (Number 42.) =? uint64 42
 
+    (* Numeric as string to maintain accuracy *)
+
+    Json.deserialize (String "42") =? decimal 42
+
     (* String *)
 
     Json.deserialize (String "hello") =? "hello"
@@ -152,6 +156,9 @@ let ``Json.deserialize simple types returns correct values`` () =
     (* DateTime *)
 
     Json.deserialize (String "Fri, 20 Feb 2015 14:36:21 GMT") =? DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)
+
+    (* DateTimeOffset *)
+
     Json.deserialize (String "2015-04-15T13:45:55Z") =? DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero)
 
 [<Test>]
@@ -233,7 +240,6 @@ let ``Json.serialize with simple types returns correct values`` () =
 
     (* Numeric *)
 
-    Json.serialize (decimal 42) =? Number 42.
     Json.serialize (float 42) =? Number 42.
     Json.serialize (int 42) =? Number 42.
     Json.serialize (int16 42) =? Number 42.
@@ -243,9 +249,16 @@ let ``Json.serialize with simple types returns correct values`` () =
     Json.serialize (uint32 42) =? Number 42.
     Json.serialize (uint64 42) =? Number 42.
 
+    (* Numeric as string to maintain accuracy *)
+
+    Json.serialize (decimal 42) =? String "42"
+
     (* DateTime *)
 
     Json.serialize (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)) =? String "2015-02-20T14:36:21.0000000Z"
+
+    (* DateTimeOffset *)
+
     Json.serialize (DateTimeOffset (2015, 2, 20, 14, 36, 21, TimeSpan.Zero)) =? String "2015-02-20T14:36:21.0000000+00:00"
 
     (* String *)
