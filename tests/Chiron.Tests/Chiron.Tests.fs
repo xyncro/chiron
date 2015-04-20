@@ -269,40 +269,11 @@ let ``Json.serialize with simple types returns correct values`` () =
 let ``Json.serialize with custom types returns correct values`` () =
     Json.serialize testInstance =? testJson
 
-/// Parse a Property from a Json Object token, and try to deserialize it to the
-/// inferred type.
-let inline (|Prop|_|) key =
-  Lens.getPartial (objectKeyPLens key)
-  >> Option.bind Json.tryDeserialize
-
 type TestUnion =
     | One of string
     | Two of int * bool
 
     static member FromJson (_ : TestUnion) =
-      //Json.tryRead "one"
-
-      //>>= Option.fold (fun s t -> Json.init (One t)) (Json.read "two" |> Json.map Two)
-
-      // -----------
-      
-      //>>= (function
-      //    | Some s -> Json.init (One s)
-      //    | None   -> Json.read "two" |> Json.map Two)
-
-      // -----------
-
-      (*json {
-        let! mone = Json.tryRead "one"
-        match mone with
-        | Some s -> return One s
-        | None ->
-          let! x = Json.read "two"
-          return Two x
-      }*)
-
-      // -------
-
       function
       | Prop "one" str as json ->
         Json.init (One str) json

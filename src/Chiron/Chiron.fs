@@ -610,11 +610,12 @@ module Mapping =
     let inline stringPLens _ =
         idLens <-?> Json.StringPIso
 
+    // TODO: where should these operators be?
     let (<%>) (l : PLens<Json, 'a>) (f, fMsg) : Json<'b> =
       fun x ->
           match Json.getLensPartial l x with
-          | Value v, json -> Value (f v), json
-          | Error e, json -> Error (fMsg json), json
+          | Value v, json -> Json.init (f v) json
+          | Error e, json -> Json.error (fMsg json) json
 
     let (<%%>) (m : Json<'a>) (l : PLens<Json, 'b>, (f : 'b -> 'a), fMsg) : Json<'a> =
         fun x ->
@@ -882,6 +883,18 @@ module Mapping =
     [<RequireQualifiedAccess>]
     module Json =
 
+        (* Deserialization *)
+
+        let inline deserialize json =
+            fromJson json
+            |> function | Value a -> a
+                        | Error e -> failwith e
+
+        let inline tryDeserialize json =
+            fromJson json
+            |> function | Value a -> Some a
+                        | _ -> None
+
         (* Read *)
 
         let inline read key =
@@ -898,19 +911,13 @@ module Mapping =
         let inline write key value =
             Json.setLensPartial (objectKeyPLens key) (toJson value)
 
-        (* Deserialization *)
-
-        let inline deserialize json =
-            fromJson json
-            |> function | Value a -> a
-                        | Error e -> failwith e
-
-        let inline tryDeserialize json =
-            fromJson json
-            |> function | Value a -> Some a
-                        | _ -> None
-
         (* Serialization *)
 
         let inline serialize a =
             toJson a
+
+    /// Parse a Property from a Json Object token, and try to deserialize it to the
+    /// inferred type.
+    let inline (|Prop|_|) key =
+           Lens.getPartial (objectKeyPLens key)
+        >> Option.bind Json.tryDeserialize
