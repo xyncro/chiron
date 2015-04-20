@@ -1,18 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>4ee2600b-c084-4ace-b324-afbc86f59c2d</ProjectGuid>
+    <ProjectGuid>{4EE2600B-C084-4ACE-B324-AFBC86F59C2D}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>Chiron.Schema</RootNamespace>
     <AssemblyName>Chiron.Schema</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <TargetFSharpCoreVersion>4.3.1.0</TargetFSharpCoreVersion>
     <Name>Chiron.Schema</Name>
-    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -42,8 +40,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Chiron\Chiron.fsproj">
       <Name>Chiron</Name>
-      <Project>{0c508eee-e451-4bb3-863a-36d3dd7da413}</Project>
-      <Private>True</Private>
+      <Project>{0C508EEE-E451-4BB3-863A-36D3DD7DA413}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
