@@ -38,12 +38,17 @@ type ChironProperties =
         let sut = roundTrip tr
         sut = tr |@ sprintf "(%A should equal %A)" sut tr
 
-type SafeString =
+type Overrides =
     static member SafeString () =
         Arb.Default.String()
-        |> Arb.filter (fun s ->
-            s <> null)
+        |> Arb.filter (fun s -> s <> null)
+
+    static member DateTime () =
+        Arb.Default.DateTime ()
+        |> Arb.filter (fun dt -> dt.Kind = System.DateTimeKind.Utc)
 
 [<Test>]
 let ``Chiron properties`` () =
-    Check.All<ChironProperties>({ Config.VerboseThrowOnFailure with Arbitrary = [typeof<SafeString>] })
+    let config = { Config.VerboseThrowOnFailure with
+                      Arbitrary = [ typeof<Overrides> ] }
+    Check.All<ChironProperties> config
