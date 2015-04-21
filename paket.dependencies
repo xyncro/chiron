@@ -6,6 +6,7 @@ nuget FParsec
 nuget FSharp.Core
 nuget Fake
 nuget FsCheck
+nuget Newtonsoft.Json
 nuget Nuget.CommandLine
 nuget NUnit
 nuget NUnit.Runners
