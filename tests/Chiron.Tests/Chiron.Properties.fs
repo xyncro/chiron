@@ -1,21 +1,21 @@
-﻿module Chiron.Properties
+﻿module Chiron.Tests.Properties
 
+open Chiron
 open FsCheck
 open NUnit.Framework
-open Chiron
 open Chiron.Operators
 
 type TestRecord =
-    {
-        StringField : string
-        GuidField : System.Guid
-        DateTimeField : System.DateTime
-    }
+    { StringField: string
+      GuidField: System.Guid
+      DateTimeField: System.DateTime }
+
     static member FromJson (_ : TestRecord) =
             fun s g d -> { StringField = s; GuidField = g; DateTimeField = d }
         <!> Json.read "stringField"
         <*> Json.read "guidField"
         <*> Json.read "dateTimeField"
+
     static member ToJson { StringField = s; GuidField = g; DateTimeField = d } =
         Json.write "stringField" s
         *> Json.write "guidField" g
@@ -38,12 +38,17 @@ type ChironProperties =
         let sut = roundTrip tr
         sut = tr |@ sprintf "(%A should equal %A)" sut tr
 
-type SafeString =
+type Overrides =
     static member SafeString () =
         Arb.Default.String()
-        |> Arb.filter (fun s ->
-            s <> null)
+        |> Arb.filter (fun s -> s <> null)
+
+    static member DateTime () =
+        Arb.Default.DateTime ()
+        |> Arb.mapFilter (fun dt -> dt.ToUniversalTime()) (fun dt -> dt.Kind = System.DateTimeKind.Utc)
 
 [<Test>]
 let ``Chiron properties`` () =
-    Check.All<ChironProperties>({ Config.VerboseThrowOnFailure with Arbitrary = [typeof<SafeString>] })
+    let config = { Config.VerboseThrowOnFailure with
+                      Arbitrary = [ typeof<Overrides> ] }
+    Check.All<ChironProperties> config

@@ -29,9 +29,9 @@ Target "Build" (fun _ ->
 Target "Publish" (fun _ ->
     NuGet (fun p ->
         { p with
-              Authors = [ "Andrew Cherry" ]
+              Authors = [ "Andrew Cherry"; "Michael Newton"; "Henrik Feldt" ]
               Project = "Chiron"
-              Version = "1.0.1"
+              Version = "2.0.0"
               OutputPath = "bin"
               AccessKey = getBuildParamOrDefault "nuget_key" ""
               Publish = hasBuildParam "nuget_key"
@@ -40,12 +40,12 @@ Target "Publish" (fun _ ->
                   "FParsec", GetPackageVersion "packages" "FParsec"
                   "FSharp.Core", GetPackageVersion "packages" "FSharp.Core" ]
               Files = 
-                [ "../src/Chiron/bin/Release/Chiron.dll", Some "lib/net40", None
+                [ "../src/Chiron/bin/Release/Chiron.dll", Some "lib/net45", None
                   (if Type.GetType ("Mono.Runtime") = null then
-                    "../src/Chiron/bin/Release/Chiron.pdb", Some "lib/net40", None
+                    "../src/Chiron/bin/Release/Chiron.pdb", Some "lib/net45", None
                    else
-                    "../src/Chiron/bin/Release/Chiron.dll.mdb", Some "lib/net40", None)
-                  "../src/Chiron/bin/Release/Chiron.xml", Some "lib/net40", None ] })
+                    "../src/Chiron/bin/Release/Chiron.dll.mdb", Some "lib/net45", None)
+                  "../src/Chiron/bin/Release/Chiron.xml", Some "lib/net45", None ] })
               "./nuget/Chiron.nuspec")
 
 // Dependencies
