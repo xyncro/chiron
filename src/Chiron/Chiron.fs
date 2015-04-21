@@ -4,6 +4,7 @@ open System
 open System.Globalization
 open System.Text
 open Aether
+open Aether.Operators
 open FParsec
 
 (* RFC 7159
@@ -16,16 +17,18 @@ open FParsec
 
 (* Types
 
-   Simple AST for JSON, with included isomorphisms in Aether format for
+   Simple AST for JSON, with included isomorphisms and lenses in Aether form for
    lens/isomorphism based modification of complex JSON structures. *)
 
 type Json =
     | Array of Json list
     | Bool of bool
-    | Number of float
     | Null of unit
+    | Number of float
     | Object of Map<string, Json>
     | String of string
+
+    (* Isomorphisms *)
 
     static member ArrayPIso : PIso<Json, Json list> =
         (function | Array x -> Some x
@@ -35,13 +38,13 @@ type Json =
         (function | Bool x -> Some x
                   | _ -> None), Bool
 
-    static member NumberPIso : PIso<Json, float> =
-        (function | Number x -> Some x
-                  | _ -> None), Number
-
     static member NullPIso : PIso<Json, unit> =
         (function | Null () -> Some ()
                   | _ -> None), Null
+
+    static member NumberPIso : PIso<Json, float> =
+        (function | Number x -> Some x
+                  | _ -> None), Number
 
     static member ObjectPIso : PIso<Json, Map<string, Json>> =
         (function | Object x -> Some x
@@ -50,6 +53,26 @@ type Json =
     static member StringPIso : PIso<Json, string> =
         (function | String x -> Some x
                   | _ -> None), String
+
+    (* Lenses *)
+
+    static member ArrayPLens : PLens<Json, Json list> =
+        idLens <-?> Json.ArrayPIso
+
+    static member BoolPLens : PLens<Json, bool> =
+        idLens <-?> Json.BoolPIso
+
+    static member NullPLens : PLens<Json, unit> =
+        idLens <-?> Json.NullPIso
+
+    static member NumberPLens : PLens<Json, float> =
+        idLens <-?> Json.NumberPIso
+
+    static member ObjectPLens : PLens<Json, Map<string, Json>> =
+        idLens <-?> Json.ObjectPIso
+
+    static member StringPLens : PLens<Json, string> =
+        idLens <-?> Json.StringPIso
 
 (* Functional
 
@@ -236,12 +259,12 @@ module Lens =
 module internal Escaping =
 
     let private digit i =
-        (i >= 0x30 && i <= 0x39)
+            (i >= 0x30 && i <= 0x39)
 
     let private hexdig i =
-        (digit i)
-     || (i >= 0x41 && i <= 0x46)
-     || (i >= 0x61 && i <= 0x66)
+            (digit i)
+         || (i >= 0x41 && i <= 0x46)
+         || (i >= 0x61 && i <= 0x66)
 
     let private unescaped i =
             i >= 0x20 && i <= 0x21
@@ -588,41 +611,6 @@ module Mapping =
 
     open Operators
 
-    (* Lenses
-
-       Common lenses and lens functions for mapping. *)
-
-    let inline arrayPLens _ =
-        idLens <-?> Json.ArrayPIso
-
-    let inline boolPLens _ =
-        idLens <-?> Json.BoolPIso
-
-    let inline numberPLens _ =
-        idLens <-?> Json.NumberPIso
-
-    let inline objectPLens _ =
-        idLens <-?> Json.ObjectPIso
-
-    let inline objectKeyPLens key =
-        objectPLens () >??> mapPLens key
-
-    let inline stringPLens _ =
-        idLens <-?> Json.StringPIso
-
-    // TODO: where should these operators be?
-    let (<%>) (l : PLens<Json, 'a>) (f, fMsg) : Json<'b> =
-      fun x ->
-          match Json.getLensPartial l x with
-          | Value v, json -> Json.init (f v) json
-          | Error e, json -> Json.error (fMsg json) json
-
-    let (<%%>) (m : Json<'a>) (l : PLens<Json, 'b>, (f : 'b -> 'a), fMsg) : Json<'a> =
-        fun x ->
-            match m x with
-            | Error e, json -> (l <%> (f, fMsg)) json
-            | Value v, json -> Value v, json
-
     (* From
 
        Default conversion functions (static members on FromJsonDefaults)
@@ -636,39 +624,37 @@ module Mapping =
         (* Basic Types *)
 
         static member inline FromJson (_: bool) =
-            Json.getLensPartial (boolPLens ())
+            Json.getLensPartial Json.BoolPLens
 
         static member inline FromJson (_: decimal) : Json<decimal> =
-          numberPLens ()
-          <%> (decimal, sprintf "parsing number %A to decimal failed")
-          <%%> (stringPLens(), decimal, sprintf "parsing string %A to decimal failed")
+            decimal <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: float) =
-            Json.getLensPartial (numberPLens ())
+            id <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: int) =
-            int <!> Json.getLensPartial (numberPLens ())
+            int <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: int16) =
-            int16 <!> Json.getLensPartial (numberPLens ())
+            int16 <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: int64) =
-            int64 <!> Json.getLensPartial (numberPLens ())
+            int64 <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: single) =
-            single <!> Json.getLensPartial (numberPLens ())
+            single <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: string) =
-            Json.getLensPartial (stringPLens ())
+            Json.getLensPartial Json.StringPLens
 
         static member inline FromJson (_: uint16) =
-            uint16 <!> Json.getLensPartial (numberPLens ())
+            uint16 <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: uint32) =
-            uint32 <!> Json.getLensPartial (numberPLens ())
+            uint32 <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: uint64) =
-            uint64 <!> Json.getLensPartial (numberPLens ())
+            uint64 <!> Json.getLensPartial Json.NumberPLens
 
         (* Common Types *)
 
@@ -677,21 +663,21 @@ module Mapping =
                     match DateTime.TryParseExact (x, [| "s"; "r"; "o" |], null, DateTimeStyles.AdjustToUniversal) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetime"
-            =<< Json.getLensPartial (stringPLens ())
+            =<< Json.getLensPartial Json.StringPLens
 
         static member inline FromJson (_: DateTimeOffset) =
                 fun x ->
                     match DateTimeOffset.TryParseExact (x, [|"yyyy-MM-dd'T'HH:mm:ss.FFFK" |], null, DateTimeStyles.None) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetimeoffset"
-            =<< Json.getLensPartial (stringPLens ())
+            =<< Json.getLensPartial Json.StringPLens
 
         static member inline FromJson (_: Guid) =
                 fun x ->
                     match Guid.TryParse x with
                     | true, x -> Json.init x
                     | _ -> Json.error "guid"
-            =<< Json.getLensPartial (stringPLens ())
+            =<< Json.getLensPartial Json.StringPLens
 
     (* Mapping Functions
 
@@ -723,13 +709,13 @@ module Mapping =
 
         static member inline FromJson (_: 'a array) : Json<'a array> =
                 fromJsonFold Array.empty (fun x xs -> Array.append [| x |] xs) >> Json.ofResult
-            =<< Json.getLensPartial (arrayPLens ())
+            =<< Json.getLensPartial Json.ArrayPLens
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
                 fromJsonFold List.empty (fun x xs -> x :: xs) >> Json.ofResult
-            =<< Json.getLensPartial (arrayPLens ())
+            =<< Json.getLensPartial Json.ArrayPLens
 
         (* Maps *)
 
@@ -737,13 +723,13 @@ module Mapping =
                 fun x ->
                     let k, v = (Map.toList >> List.unzip) x
                     List.zip k >> Map.ofList <!> Json.ofResult (fromJsonFold [] (fun x xs -> x :: xs) v)
-            =<< Json.getLensPartial (objectPLens ())
+            =<< Json.getLensPartial Json.ObjectPLens
 
         (* Sets *)
 
         static member inline FromJson (_: Set<'a>) : Json<Set<'a>> =
                 fromJsonFold Set.empty Set.add >> Json.ofResult
-            =<< Json.getLensPartial (arrayPLens ())
+            =<< Json.getLensPartial Json.ArrayPLens
 
         (* Options *)
 
@@ -761,7 +747,7 @@ module Mapping =
                             <*> Json.ofResult (fromJson b)
                          | _ ->
                             Json.error "tuple2"
-            =<< Json.getLensPartial (arrayPLens ())
+            =<< Json.getLensPartial Json.ArrayPLens
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
                 function | a :: b :: c :: [] ->
@@ -771,7 +757,7 @@ module Mapping =
                             <*> Json.ofResult (fromJson c)
                          | _ ->
                             Json.error "tuple3"
-            =<< Json.getLensPartial (arrayPLens ())
+            =<< Json.getLensPartial Json.ArrayPLens
 
     (* To
     
@@ -784,48 +770,48 @@ module Mapping =
         (* Basic Types *)
 
         static member inline ToJson (x: bool) =
-            Json.setLensPartial (boolPLens ()) x
+            Json.setLensPartial Json.BoolPLens x
 
         static member inline ToJson (x: decimal) =
-            Json.setLensPartial (stringPLens ()) (x.ToString(CultureInfo.InvariantCulture))
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: float) =
-            Json.setLensPartial (numberPLens ()) x
+            Json.setLensPartial Json.NumberPLens x
 
         static member inline ToJson (x: int) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: int16) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: int64) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: single) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: string) =
-            Json.setLensPartial (stringPLens ()) x
+            Json.setLensPartial Json.StringPLens x
 
         static member inline ToJson (x: uint16) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: uint32) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         static member inline ToJson (x: uint64) =
-            Json.setLensPartial (numberPLens ()) (float x)
+            Json.setLensPartial Json.NumberPLens (float x)
 
         (* Common Types *)
 
         static member inline ToJson (x: DateTime) =
-            Json.setLensPartial (stringPLens ()) (x.ToUniversalTime().ToString("o"))
+            Json.setLensPartial Json.StringPLens (x.ToUniversalTime().ToString("o"))
         
         static member inline ToJson (x: DateTimeOffset) =
-            Json.setLensPartial (stringPLens ()) (x.ToString("o"))
+            Json.setLensPartial Json.StringPLens (x.ToString("o"))
 
         static member inline ToJson (x: Guid) =
-            Json.setLensPartial (stringPLens ()) (string x)
+            Json.setLensPartial Json.StringPLens (string x)
 
     (* Mapping Functions
 
@@ -899,25 +885,33 @@ module Mapping =
 
         let inline read key =
                 fromJson >> Json.ofResult
-            =<< Json.getLensPartial (objectKeyPLens key) 
+            =<< Json.getLensPartial (Json.ObjectPLens >??> mapPLens key) 
 
         let inline tryRead key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
-            =<< Json.tryGetLensPartial (objectKeyPLens key)
+            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
 
         (* Write *)
 
         let inline write key value =
-            Json.setLensPartial (objectKeyPLens key) (toJson value)
+            Json.setLensPartial (Json.ObjectPLens >??> mapPLens key) (toJson value)
 
         (* Serialization *)
 
         let inline serialize a =
             toJson a
 
+(* Patterns
+
+   Active patterns for working with Json data structures, making it
+   easier to write code for matching against unions, etc. *)
+
+[<AutoOpen>]
+module Patterns =
+
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
-    let inline (|Prop|_|) key =
-           Lens.getPartial (objectKeyPLens key)
-        >> Option.bind Json.tryDeserialize
+    let inline (|Property|_|) key =
+            Lens.getPartial (Json.ObjectPLens >??> mapPLens key)
+         >> Option.bind Json.tryDeserialize

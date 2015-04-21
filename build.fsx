@@ -40,12 +40,12 @@ Target "Publish" (fun _ ->
                   "FParsec", GetPackageVersion "packages" "FParsec"
                   "FSharp.Core", GetPackageVersion "packages" "FSharp.Core" ]
               Files = 
-                [ "../src/Chiron/bin/Release/Chiron.dll", Some "lib/net40", None
+                [ "../src/Chiron/bin/Release/Chiron.dll", Some "lib/net45", None
                   (if Type.GetType ("Mono.Runtime") = null then
-                    "../src/Chiron/bin/Release/Chiron.pdb", Some "lib/net40", None
+                    "../src/Chiron/bin/Release/Chiron.pdb", Some "lib/net45", None
                    else
-                    "../src/Chiron/bin/Release/Chiron.dll.mdb", Some "lib/net40", None)
-                  "../src/Chiron/bin/Release/Chiron.xml", Some "lib/net40", None ] })
+                    "../src/Chiron/bin/Release/Chiron.dll.mdb", Some "lib/net45", None)
+                  "../src/Chiron/bin/Release/Chiron.xml", Some "lib/net45", None ] })
               "./nuget/Chiron.nuspec")
 
 // Dependencies

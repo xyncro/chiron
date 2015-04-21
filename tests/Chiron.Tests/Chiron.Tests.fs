@@ -145,10 +145,6 @@ let ``Json.deserialize simple types returns correct values`` () =
     Json.deserialize (Number 42.) =? uint32 42
     Json.deserialize (Number 42.) =? uint64 42
 
-    (* Numeric as string to maintain accuracy *)
-
-    Json.deserialize (String "42") =? decimal 42
-
     (* String *)
 
     Json.deserialize (String "hello") =? "hello"
@@ -240,6 +236,7 @@ let ``Json.serialize with simple types returns correct values`` () =
 
     (* Numeric *)
 
+    Json.serialize (decimal 42) =? Number 42.
     Json.serialize (float 42) =? Number 42.
     Json.serialize (int 42) =? Number 42.
     Json.serialize (int16 42) =? Number 42.
@@ -248,10 +245,6 @@ let ``Json.serialize with simple types returns correct values`` () =
     Json.serialize (uint16 42) =? Number 42.
     Json.serialize (uint32 42) =? Number 42.
     Json.serialize (uint64 42) =? Number 42.
-
-    (* Numeric as string to maintain accuracy *)
-
-    Json.serialize (decimal 42) =? String "42"
 
     (* DateTime *)
 
@@ -275,12 +268,9 @@ type TestUnion =
 
     static member FromJson (_ : TestUnion) =
       function
-      | Prop "one" str as json ->
-        Json.init (One str) json
-      | Prop "two" (i, b) as json ->
-        Json.init (Two (i, b)) json
-      | json ->
-        Json.error (sprintf "couldn't deserialise %A to TestUnion" json) json
+      | Property "one" str as json -> Json.init (One str) json
+      | Property "two" (i, b) as json -> Json.init (Two (i, b)) json
+      | json -> Json.error (sprintf "couldn't deserialise %A to TestUnion" json) json
 
     static member ToJson (x: TestUnion) =
         match x with
