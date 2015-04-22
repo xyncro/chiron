@@ -2,7 +2,6 @@
 #r "packages/FAKE/tools/FakeLib.dll"
 
 open Fake
-open System
 
 // Clean
 
@@ -29,7 +28,10 @@ Target "Build" (fun _ ->
 Target "Publish" (fun _ ->
     NuGet (fun p ->
         { p with
-              Authors = [ "Andrew Cherry"; "Michael Newton"; "Henrik Feldt" ]
+              Authors =
+                [ "Andrew Cherry"
+                  "Michael Newton"
+                  "Henrik Feldt" ]
               Project = "Chiron"
               Version = "2.0.0"
               OutputPath = "bin"
@@ -40,18 +42,18 @@ Target "Publish" (fun _ ->
                   "FParsec", GetPackageVersion "packages" "FParsec"
                   "FSharp.Core", GetPackageVersion "packages" "FSharp.Core" ]
               Files = 
-                [ "../src/Chiron/bin/Release/Chiron.dll", Some "lib/net45", None
-                  (if Type.GetType ("Mono.Runtime") = null then
-                    "../src/Chiron/bin/Release/Chiron.pdb", Some "lib/net45", None
-                   else
-                    "../src/Chiron/bin/Release/Chiron.dll.mdb", Some "lib/net45", None)
-                  "../src/Chiron/bin/Release/Chiron.xml", Some "lib/net45", None ] })
+                [ @"..\src\Chiron\bin\Release\Chiron.dll", Some "lib/net45", None
+                  @"..\src\Chiron\bin\Release\Chiron.pdb", Some "lib/net45", None
+                  @"..\src\Chiron\bin\Release\Chiron.xml", Some "lib/net45", None ] })
               "./nuget/Chiron.nuspec")
 
 // Dependencies
 
 "Clean"
     ==> "Build"
+#if MONO
+#else
     ==> "Publish"
+#endif
 
 RunTargetOrDefault "Publish"
