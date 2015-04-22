@@ -507,8 +507,8 @@ module Parsing =
 
         let tryParse =
                parseJson
-            >> function | Value json -> Some json
-                        | _ -> None
+            >> function | Value json -> Choice1Of2 json
+                        | Error e -> Choice2Of2 e
 
         let parse =
                parseJson
@@ -869,7 +869,21 @@ module Mapping =
     [<RequireQualifiedAccess>]
     module Json =
 
-        (* Deserialization *)
+        (* Read/Write *)
+
+        let inline read key =
+                fromJson >> Json.ofResult
+            =<< Json.getLensPartial (Json.ObjectPLens >??> mapPLens key)
+
+        let inline tryRead key =
+                function | Some json -> Some <!> Json.ofResult (fromJson json)
+                         | _ -> Json.init None
+            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
+
+        let inline write key value =
+            Json.setLensPartial (Json.ObjectPLens >??> mapPLens key) (toJson value)
+
+        (* Serialization/Deserialization *)
 
         let inline deserialize json =
             fromJson json
@@ -878,26 +892,8 @@ module Mapping =
 
         let inline tryDeserialize json =
             fromJson json
-            |> function | Value a -> Some a
-                        | _ -> None
-
-        (* Read *)
-
-        let inline read key =
-                fromJson >> Json.ofResult
-            =<< Json.getLensPartial (Json.ObjectPLens >??> mapPLens key) 
-
-        let inline tryRead key =
-                function | Some json -> Some <!> Json.ofResult (fromJson json)
-                         | _ -> Json.init None
-            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
-
-        (* Write *)
-
-        let inline write key value =
-            Json.setLensPartial (Json.ObjectPLens >??> mapPLens key) (toJson value)
-
-        (* Serialization *)
+            |> function | Value a -> Choice1Of2 a
+                        | Error e -> Choice2Of2 e
 
         let inline serialize a =
             toJson a
@@ -914,4 +910,5 @@ module Patterns =
     /// inferred type.
     let inline (|Property|_|) key =
             Lens.getPartial (Json.ObjectPLens >??> mapPLens key)
-         >> Option.bind Json.tryDeserialize
+         >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
+                                                         | _ -> None)
