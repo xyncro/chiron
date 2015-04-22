@@ -291,3 +291,11 @@ let ``Json.serialize with union types remains tractable`` () =
 [<Test>]
 let ``Json.deserialize with union types remains tractable`` () =
     Json.deserialize testUnionJson =? testUnion
+
+[<Test>]
+let ``Json.format escapes object keys correctly`` () =
+    let data = Map [ "\u001f", "abc" ]
+    let serialized = Json.serialize data
+    let formatted = Json.format serialized
+
+    formatted =? """{"\u001F":"abc"}"""

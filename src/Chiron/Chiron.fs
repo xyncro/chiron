@@ -578,7 +578,7 @@ module Formatting =
     and private formatObject =
         function | x -> 
                        append "{" 
-                    >> join (fun (k, v) -> appendf "\"{0}\":" k >> formatJson v)
+                    >> join (fun (k, v) -> appendf "\"{0}\":" (Escaping.escape k) >> formatJson v)
                             (append ",")
                             (Map.toList x) 
                     >> append "}"
