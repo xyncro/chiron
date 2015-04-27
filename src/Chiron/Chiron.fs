@@ -24,7 +24,7 @@ type Json =
     | Array of Json list
     | Bool of bool
     | Null of unit
-    | Number of float
+    | Number of decimal
     | Object of Map<string, Json>
     | String of string
 
@@ -42,7 +42,7 @@ type Json =
         (function | Null () -> Some ()
                   | _ -> None), Null
 
-    static member NumberPIso : PIso<Json, float> =
+    static member NumberPIso : PIso<Json, decimal> =
         (function | Number x -> Some x
                   | _ -> None), Number
 
@@ -65,7 +65,7 @@ type Json =
     static member NullPLens : PLens<Json, unit> =
         idLens <-?> Json.NullPIso
 
-    static member NumberPLens : PLens<Json, float> =
+    static member NumberPLens : PLens<Json, decimal> =
         idLens <-?> Json.NumberPIso
 
     static member ObjectPLens : PLens<Json, Map<string, Json>> =
@@ -445,7 +445,7 @@ module Parsing =
 
     let private numberP =
         pipe4 (opt minusP) intP (opt fracP) (opt expP) (fun m i f e ->
-            float (emp m + i + emp f + emp e)) .>> wspP
+            decimal (emp m + i + emp f + emp e)) .>> wspP
 
     (* Strings
 
@@ -626,11 +626,11 @@ module Mapping =
         static member inline FromJson (_: bool) =
             Json.getLensPartial Json.BoolPLens
 
-        static member inline FromJson (_: decimal) : Json<decimal> =
-            decimal <!> Json.getLensPartial Json.NumberPLens
+        static member inline FromJson (_: decimal) =
+            id <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: float) =
-            id <!> Json.getLensPartial Json.NumberPLens
+            float <!> Json.getLensPartial Json.NumberPLens
 
         static member inline FromJson (_: int) =
             int <!> Json.getLensPartial Json.NumberPLens
@@ -773,34 +773,34 @@ module Mapping =
             Json.setLensPartial Json.BoolPLens x
 
         static member inline ToJson (x: decimal) =
-            Json.setLensPartial Json.NumberPLens (float x)
-
-        static member inline ToJson (x: float) =
             Json.setLensPartial Json.NumberPLens x
 
+        static member inline ToJson (x: float) =
+            Json.setLensPartial Json.NumberPLens (decimal x)
+
         static member inline ToJson (x: int) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         static member inline ToJson (x: int16) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         static member inline ToJson (x: int64) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         static member inline ToJson (x: single) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         static member inline ToJson (x: string) =
             Json.setLensPartial Json.StringPLens x
 
         static member inline ToJson (x: uint16) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         static member inline ToJson (x: uint32) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         static member inline ToJson (x: uint64) =
-            Json.setLensPartial Json.NumberPLens (float x)
+            Json.setLensPartial Json.NumberPLens (decimal x)
 
         (* Common Types *)
 
