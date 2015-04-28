@@ -13,12 +13,12 @@ open Swensen.Unquote
 let private t1 =
     Object (Map.ofList
         [ "bool", Bool true
-          "number", Number 2. ])
+          "number", Number 2M ])
 
 let private t2 =
     Object (Map.ofList
         [ "bool", Bool false
-          "number", Number 2. ])
+          "number", Number 2M ])
 
 (* Functional
 
@@ -135,15 +135,15 @@ let ``Json.deserialize simple types returns correct values`` () =
 
     (* Numeric *)
 
-    Json.deserialize (Number 42.) =? decimal 42
-    Json.deserialize (Number 42.) =? float 42
-    Json.deserialize (Number 42.) =? int 42
-    Json.deserialize (Number 42.) =? int16 42
-    Json.deserialize (Number 42.) =? int64 42
-    Json.deserialize (Number 42.) =? single 42
-    Json.deserialize (Number 42.) =? uint16 42
-    Json.deserialize (Number 42.) =? uint32 42
-    Json.deserialize (Number 42.) =? uint64 42
+    Json.deserialize (Number 42M) =? decimal 42
+    Json.deserialize (Number 42M) =? float 42
+    Json.deserialize (Number 42M) =? int 42
+    Json.deserialize (Number 42M) =? int16 42
+    Json.deserialize (Number 42M) =? int64 42
+    Json.deserialize (Number 42M) =? single 42
+    Json.deserialize (Number 42M) =? uint16 42
+    Json.deserialize (Number 42M) =? uint32 42
+    Json.deserialize (Number 42M) =? uint64 42
 
     (* String *)
 
@@ -174,8 +174,8 @@ let ``Json.deserialize complex types returns correct values`` () =
 
     Json.deserialize (
         Object (Map.ofList
-            [ "one", Number 1.
-              "two", Number 2. ]))
+            [ "one", Number 1M
+              "two", Number 2M ]))
         =? Map.ofList [ "one", 1; "two", 2 ]
 
     (* Sets *)
@@ -190,7 +190,7 @@ let ``Json.deserialize complex types returns correct values`` () =
 
     (* Tuples *)
 
-    Json.deserialize (Array [ String "hello"; Number 42. ])
+    Json.deserialize (Array [ String "hello"; Number 42M ])
         =? ("hello", 42)
 
 type Test =
@@ -215,7 +215,7 @@ type Test =
 let testJson =
     Object (Map.ofList
         [ "string", String "hello"
-          "number", Number 42.
+          "number", Number 42M
           "values", Array [ Bool true; Bool false ] ])
 
 let testInstance =
@@ -236,15 +236,15 @@ let ``Json.serialize with simple types returns correct values`` () =
 
     (* Numeric *)
 
-    Json.serialize (decimal 42) =? Number 42.
-    Json.serialize (float 42) =? Number 42.
-    Json.serialize (int 42) =? Number 42.
-    Json.serialize (int16 42) =? Number 42.
-    Json.serialize (int64 42) =? Number 42.
-    Json.serialize (single 42) =? Number 42.
-    Json.serialize (uint16 42) =? Number 42.
-    Json.serialize (uint32 42) =? Number 42.
-    Json.serialize (uint64 42) =? Number 42.
+    Json.serialize (decimal 42) =? Number 42M
+    Json.serialize (float 42) =? Number 42M
+    Json.serialize (int 42) =? Number 42M
+    Json.serialize (int16 42) =? Number 42M
+    Json.serialize (int64 42) =? Number 42M
+    Json.serialize (single 42) =? Number 42M
+    Json.serialize (uint16 42) =? Number 42M
+    Json.serialize (uint32 42) =? Number 42M
+    Json.serialize (uint64 42) =? Number 42M
 
     (* DateTime *)
 
@@ -282,7 +282,7 @@ let testUnion =
 
 let testUnionJson =
     Object (Map.ofList
-        [ "two", Array [ Number 42.; Bool true ] ])
+        [ "two", Array [ Number 42M; Bool true ] ])
 
 [<Test>]
 let ``Json.serialize with union types remains tractable`` () =
