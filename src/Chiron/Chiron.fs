@@ -875,6 +875,11 @@ module Mapping =
                 fromJson >> Json.ofResult
             =<< Json.getLensPartial (Json.ObjectPLens >??> mapPLens key)
 
+        let inline readOrDefault key def =
+                function | Some json -> Json.ofResult (fromJson json)
+                         | _ -> Json.init def
+            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
+
         let inline tryRead key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
