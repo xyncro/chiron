@@ -679,6 +679,11 @@ module Mapping =
                     | _ -> Json.error "guid"
             =<< Json.getLensPartial Json.StringPLens
 
+        (* Json Type *)
+
+        static member inline FromJson (_: Json) =
+            Json.getLens idLens
+
     (* Mapping Functions
 
        Functions for applying the FromJson function to Json to produce
@@ -812,6 +817,11 @@ module Mapping =
 
         static member inline ToJson (x: Guid) =
             Json.setLensPartial Json.StringPLens (string x)
+
+        (* Json Type *)
+
+        static member inline ToJson (x: Json) =
+            Json.setLens idLens x
 
     (* Mapping Functions
 
