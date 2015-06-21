@@ -679,6 +679,11 @@ module Mapping =
                     | _ -> Json.error "guid"
             =<< Json.getLensPartial Json.StringPLens
 
+        (* Json Type *)
+
+        static member inline FromJson (_: Json) =
+            Json.getLens idLens
+
     (* Mapping Functions
 
        Functions for applying the FromJson function to Json to produce
@@ -813,6 +818,11 @@ module Mapping =
         static member inline ToJson (x: Guid) =
             Json.setLensPartial Json.StringPLens (string x)
 
+        (* Json Type *)
+
+        static member inline ToJson (x: Json) =
+            Json.setLens idLens x
+
     (* Mapping Functions
 
        Functions for applying the ToJson function to data structures to produce
@@ -874,6 +884,11 @@ module Mapping =
         let inline read key =
                 fromJson >> Json.ofResult
             =<< Json.getLensPartial (Json.ObjectPLens >??> mapPLens key)
+
+        let inline readOrDefault key def =
+                function | Some json -> Json.ofResult (fromJson json)
+                         | _ -> Json.init def
+            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
 
         let inline tryRead key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)

@@ -196,32 +196,38 @@ let ``Json.deserialize complex types returns correct values`` () =
 type Test =
     { String: string
       Number : int option
-      Values: bool list }
+      Values: bool list
+      Json: Json }
 
     static member FromJson (_: Test) =
-            fun s n v ->
+            fun s n v j ->
                 { String = s
                   Number = n
-                  Values = v }
+                  Values = v
+                  Json = j }
         <!> Json.read "string"
         <*> Json.read "number"
         <*> Json.read "values"
+        <*> Json.read "json"
 
     static member ToJson (x: Test) =
             Json.write "string" x.String
          *> Json.write "number" x.Number
          *> Json.write "values" x.Values
+         *> Json.write "json" x.Json
 
 let testJson =
     Object (Map.ofList
         [ "string", String "hello"
           "number", Number 42M
-          "values", Array [ Bool true; Bool false ] ])
+          "values", Array [ Bool true; Bool false ]
+          "json", Object (Map [ "hello", String "world" ]) ])
 
 let testInstance =
     { String = "hello"
       Number = Some 42
-      Values = [ true; false ] }
+      Values = [ true; false ]
+      Json = Object (Map [ "hello", String "world" ]) }
 
 [<Test>]
 let ``Json.deserialize with custom typed returns correct values`` () =
