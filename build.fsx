@@ -31,9 +31,10 @@ Target "Publish" (fun _ ->
               Authors =
                 [ "Andrew Cherry"
                   "Michael Newton"
-                  "Henrik Feldt" ]
+                  "Henrik Feldt"
+                  "Marcus Griep" ]
               Project = "Chiron"
-              Version = "4.1.0"
+              Version = "5.0.0"
               OutputPath = "bin"
               AccessKey = getBuildParamOrDefault "nuget_key" ""
               Publish = hasBuildParam "nuget_key"
