@@ -898,6 +898,11 @@ module Mapping =
         let inline write key value =
             Json.setLensPartial (Json.ObjectPLens >??> mapPLens key) (toJson value)
 
+        let inline writeUnlessDefault key def value =
+            match value with
+            | v when v = def -> Json.ofResult <| Value ()
+            | _ -> write key value
+
         (* Serialization/Deserialization *)
 
         let inline deserialize json =
