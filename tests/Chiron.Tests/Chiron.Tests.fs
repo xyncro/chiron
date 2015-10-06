@@ -60,9 +60,9 @@ let ``Json.map2 returns correct values`` () =
    data structures. *)
 
 let private lens =
-         idLens 
-    <-?> Json.ObjectPIso 
-    >??> mapPLens "bool" 
+         idLens
+    <-?> Json.ObjectPIso
+    >??> mapPLens "bool"
     <??> Json.BoolPIso
 
 [<Test>]
@@ -206,13 +206,13 @@ type Test =
                   Values = v
                   Json = j }
         <!> Json.read "string"
-        <*> Json.read "number"
+        <*> Json.readOrDefault "number" None
         <*> Json.read "values"
         <*> Json.read "json"
 
     static member ToJson (x: Test) =
             Json.write "string" x.String
-         *> Json.write "number" x.Number
+         *> Json.writeUnlessDefault "number" None x.Number
          *> Json.write "values" x.Values
          *> Json.write "json" x.Json
 
@@ -232,6 +232,37 @@ let testInstance =
 [<Test>]
 let ``Json.deserialize with custom typed returns correct values`` () =
     Json.deserialize testJson =? testInstance
+
+let testJsonWithNullOption =
+    Object (Map.ofList
+        [ "string", String "hello"
+          "number", Null ()
+          "values", Array []
+          "json", Object (Map [ "hello", String "world" ]) ])
+
+let testInstanceWithNoneOption =
+    { String = "hello"
+      Number = None
+      Values = [ ]
+      Json = Object (Map [ "hello", String "world" ]) }
+
+[<Test>]
+let ``Json.deserialize with null option value`` () =
+    Json.deserialize testJsonWithNullOption =? testInstanceWithNoneOption
+
+let testJsonWithMissingOption =
+    Object (Map.ofList
+        [ "string", String "hello"
+          "values", Array []
+          "json", Object (Map [ "hello", String "world" ]) ])
+
+[<Test>]
+let ``Json.deserialize with missing value`` () =
+    Json.deserialize testJsonWithMissingOption =? testInstanceWithNoneOption
+
+[<Test>]
+let ``Json.serialize with default value`` () =
+    Json.serialize testInstanceWithNoneOption =? testJsonWithMissingOption
 
 [<Test>]
 let ``Json.serialize with simple types returns correct values`` () =

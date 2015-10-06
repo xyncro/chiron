@@ -901,6 +901,11 @@ module Mapping =
         let inline writeNone key =
             Json.setLensPartial (object_ >??> mapPLens key) (Json.Null ())
 
+        let inline writeUnlessDefault key def value =
+            match value with
+            | v when v = def -> Json.ofResult <| Value ()
+            | _ -> write key value
+
         (* Serialization/Deserialization *)
 
         let inline deserialize json =
