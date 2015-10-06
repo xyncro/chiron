@@ -30,49 +30,49 @@ type Json =
 
     (* Isomorphisms *)
 
-    static member ArrayPIso : PIso<Json, Json list> =
+    static member internal Array__ =
         (function | Array x -> Some x
                   | _ -> None), Array
 
-    static member BoolPIso : PIso<Json, bool> =
+    static member internal Bool__ =
         (function | Bool x -> Some x
                   | _ -> None), Bool
 
-    static member NullPIso : PIso<Json, unit> =
+    static member internal Null__ =
         (function | Null () -> Some ()
                   | _ -> None), Null
 
-    static member NumberPIso : PIso<Json, decimal> =
+    static member internal Number__ =
         (function | Number x -> Some x
                   | _ -> None), Number
 
-    static member ObjectPIso : PIso<Json, Map<string, Json>> =
+    static member internal Object__ =
         (function | Object x -> Some x
                   | _ -> None), Object
 
-    static member StringPIso : PIso<Json, string> =
+    static member internal String__ =
         (function | String x -> Some x
                   | _ -> None), String
 
     (* Lenses *)
 
-    static member ArrayPLens : PLens<Json, Json list> =
-        idLens <-?> Json.ArrayPIso
+    static member Array_ =
+        id_ <-?> Json.Array__
 
-    static member BoolPLens : PLens<Json, bool> =
-        idLens <-?> Json.BoolPIso
+    static member Bool_ =
+        id_ <-?> Json.Bool__
 
-    static member NullPLens : PLens<Json, unit> =
-        idLens <-?> Json.NullPIso
+    static member Null_ =
+        id_ <-?> Json.Null__
 
-    static member NumberPLens : PLens<Json, decimal> =
-        idLens <-?> Json.NumberPIso
+    static member Number_ =
+        id_ <-?> Json.Number__
 
-    static member ObjectPLens : PLens<Json, Map<string, Json>> =
-        idLens <-?> Json.ObjectPIso
+    static member Object_ =
+        id_ <-?> Json.Object__
 
-    static member StringPLens : PLens<Json, string> =
-        idLens <-?> Json.StringPIso
+    static member String_ =
+        id_ <-?> Json.String__
 
 (* Functional
 
@@ -227,7 +227,7 @@ module Lens =
             fun json ->
                 match Lens.getPartial l json with
                 | Some x -> Value x, json
-                | _ -> Error (sprintf "couldn't use lens %A on json '%A'" l json), json
+                | _ -> Error (sprintf "Couldn't use (Partial) Lens %A on JSON: '%A'." l json), json
 
         let tryGetLensPartial l : Json<_> =
             fun json ->
@@ -624,37 +624,37 @@ module Mapping =
         (* Basic Types *)
 
         static member inline FromJson (_: bool) =
-            Json.getLensPartial Json.BoolPLens
+            Json.getLensPartial Json.Bool_
 
         static member inline FromJson (_: decimal) =
-            id <!> Json.getLensPartial Json.NumberPLens
+            id <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: float) =
-            float <!> Json.getLensPartial Json.NumberPLens
+            float <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: int) =
-            int <!> Json.getLensPartial Json.NumberPLens
+            int <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: int16) =
-            int16 <!> Json.getLensPartial Json.NumberPLens
+            int16 <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: int64) =
-            int64 <!> Json.getLensPartial Json.NumberPLens
+            int64 <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: single) =
-            single <!> Json.getLensPartial Json.NumberPLens
+            single <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: string) =
-            Json.getLensPartial Json.StringPLens
+            Json.getLensPartial Json.String_
 
         static member inline FromJson (_: uint16) =
-            uint16 <!> Json.getLensPartial Json.NumberPLens
+            uint16 <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: uint32) =
-            uint32 <!> Json.getLensPartial Json.NumberPLens
+            uint32 <!> Json.getLensPartial Json.Number_
 
         static member inline FromJson (_: uint64) =
-            uint64 <!> Json.getLensPartial Json.NumberPLens
+            uint64 <!> Json.getLensPartial Json.Number_
 
         (* Common Types *)
 
@@ -663,26 +663,26 @@ module Mapping =
                     match DateTime.TryParseExact (x, [| "s"; "r"; "o" |], null, DateTimeStyles.AdjustToUniversal) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetime"
-            =<< Json.getLensPartial Json.StringPLens
+            =<< Json.getLensPartial Json.String_
 
         static member inline FromJson (_: DateTimeOffset) =
                 fun x ->
                     match DateTimeOffset.TryParseExact (x, [|"yyyy-MM-dd'T'HH:mm:ss.FFFK" |], null, DateTimeStyles.None) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetimeoffset"
-            =<< Json.getLensPartial Json.StringPLens
+            =<< Json.getLensPartial Json.String_
 
         static member inline FromJson (_: Guid) =
                 fun x ->
                     match Guid.TryParse x with
                     | true, x -> Json.init x
                     | _ -> Json.error "guid"
-            =<< Json.getLensPartial Json.StringPLens
+            =<< Json.getLensPartial Json.String_
 
         (* Json Type *)
 
         static member inline FromJson (_: Json) =
-            Json.getLens idLens
+            Json.getLens id_
 
     (* Mapping Functions
 
@@ -714,13 +714,13 @@ module Mapping =
 
         static member inline FromJson (_: 'a array) : Json<'a array> =
                 fromJsonFold Array.empty (fun x xs -> Array.append [| x |] xs) >> Json.ofResult
-            =<< Json.getLensPartial Json.ArrayPLens
+            =<< Json.getLensPartial Json.Array_
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
                 fromJsonFold List.empty (fun x xs -> x :: xs) >> Json.ofResult
-            =<< Json.getLensPartial Json.ArrayPLens
+            =<< Json.getLensPartial Json.Array_
 
         (* Maps *)
 
@@ -728,20 +728,20 @@ module Mapping =
                 fun x ->
                     let k, v = (Map.toList >> List.unzip) x
                     List.zip k >> Map.ofList <!> Json.ofResult (fromJsonFold [] (fun x xs -> x :: xs) v)
-            =<< Json.getLensPartial Json.ObjectPLens
+            =<< Json.getLensPartial Json.Object_
 
         (* Sets *)
 
         static member inline FromJson (_: Set<'a>) : Json<Set<'a>> =
                 fromJsonFold Set.empty Set.add >> Json.ofResult
-            =<< Json.getLensPartial Json.ArrayPLens
+            =<< Json.getLensPartial Json.Array_
 
         (* Options *)
 
         static member inline FromJson (_: 'a option) : Json<'a option> =
                 function | Null _ -> Json.init None
                          | x -> Some <!> Json.ofResult (fromJson x)
-            =<< Json.getLens idLens
+            =<< Json.getLens id_
 
         (* Tuples *)
 
@@ -752,7 +752,7 @@ module Mapping =
                             <*> Json.ofResult (fromJson b)
                          | _ ->
                             Json.error "tuple2"
-            =<< Json.getLensPartial Json.ArrayPLens
+            =<< Json.getLensPartial Json.Array_
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
                 function | a :: b :: c :: [] ->
@@ -762,7 +762,7 @@ module Mapping =
                             <*> Json.ofResult (fromJson c)
                          | _ ->
                             Json.error "tuple3"
-            =<< Json.getLensPartial Json.ArrayPLens
+            =<< Json.getLensPartial Json.Array_
 
     (* To
     
@@ -775,53 +775,56 @@ module Mapping =
         (* Basic Types *)
 
         static member inline ToJson (x: bool) =
-            Json.setLensPartial Json.BoolPLens x
+            Json.setLensPartial Json.Bool_ x
 
         static member inline ToJson (x: decimal) =
-            Json.setLensPartial Json.NumberPLens x
+            Json.setLensPartial Json.Number_ x
 
         static member inline ToJson (x: float) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            match x with
+            | x when Double.IsInfinity x -> failwith "Serialization of Infinite Numbers Invalid."
+            | x when Double.IsNaN x -> failwith "Serialization of NaN Invalid."
+            | x -> Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: int) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: int16) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: int64) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: single) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: string) =
-            Json.setLensPartial Json.StringPLens x
+            Json.setLensPartial Json.String_ x
 
         static member inline ToJson (x: uint16) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: uint32) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         static member inline ToJson (x: uint64) =
-            Json.setLensPartial Json.NumberPLens (decimal x)
+            Json.setLensPartial Json.Number_ (decimal x)
 
         (* Common Types *)
 
         static member inline ToJson (x: DateTime) =
-            Json.setLensPartial Json.StringPLens (x.ToUniversalTime().ToString("o"))
+            Json.setLensPartial Json.String_ (x.ToUniversalTime().ToString("o"))
         
         static member inline ToJson (x: DateTimeOffset) =
-            Json.setLensPartial Json.StringPLens (x.ToString("o"))
+            Json.setLensPartial Json.String_ (x.ToString("o"))
 
         static member inline ToJson (x: Guid) =
-            Json.setLensPartial Json.StringPLens (string x)
+            Json.setLensPartial Json.String_ (string x)
 
         (* Json Type *)
 
         static member inline ToJson (x: Json) =
-            Json.setLens idLens x
+            Json.setLens id_ x
 
     (* Mapping Functions
 
@@ -841,36 +844,36 @@ module Mapping =
         (* Arrays *)
 
         static member inline ToJson (x: 'a array) =
-            Json.setLens idLens (Array ((Array.toList >> List.map toJson) x))
+            Json.setLens id_ (Array ((Array.toList >> List.map toJson) x))
 
         (* Lists *)
 
         static member inline ToJson (x: 'a list) =
-            Json.setLens idLens (Array (List.map toJson x))
+            Json.setLens id_ (Array (List.map toJson x))
 
         (* Maps *)
 
         static member inline ToJson (x: Map<string,'a>) =
-            Json.setLens idLens (Object (Map.map (fun _ a -> toJson a) x))
+            Json.setLens id_ (Object (Map.map (fun _ a -> toJson a) x))
 
         (* Options *)
 
         static member inline ToJson (x: 'a option) =
-            Json.setLens idLens ((function | Some a -> toJson a 
-                                           | _ -> Null ()) x)
+            Json.setLens id_ ((function | Some a -> toJson a 
+                                        | _ -> Null ()) x)
 
         (* Sets *)
 
         static member inline ToJson (x: Set<'a>) =
-            Json.setLens idLens (Array ((Set.toList >> List.map toJson) x))
+            Json.setLens id_ (Array ((Set.toList >> List.map toJson) x))
 
         (* Tuples *)
 
         static member inline ToJson ((a, b)) =
-            Json.setLens idLens (Array [ toJson a; toJson b ])
+            Json.setLens id_ (Array [ toJson a; toJson b ])
 
         static member inline ToJson ((a, b, c)) =
-            Json.setLens idLens (Array [ toJson a; toJson b; toJson c ])
+            Json.setLens id_ (Array [ toJson a; toJson b; toJson c ])
 
     (* Functions
 
@@ -883,20 +886,28 @@ module Mapping =
 
         let inline read key =
                 fromJson >> Json.ofResult
-            =<< Json.getLensPartial (Json.ObjectPLens >??> mapPLens key)
+            =<< Json.getLensPartial (Json.Object_ >??> key_ key)
 
         let inline readOrDefault key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
-            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
+            =<< Json.tryGetLensPartial (Json.Object_ >??> key_ key)
 
         let inline tryRead key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
-            =<< Json.tryGetLensPartial (Json.ObjectPLens >??> mapPLens key)
+            =<< Json.tryGetLensPartial (Json.Object_ >??> key_ key)
 
         let inline write key value =
-            Json.setLensPartial (Json.ObjectPLens >??> mapPLens key) (toJson value)
+            Json.setLensPartial (Json.Object_ >??> key_ key) (toJson value)
+
+        let inline writeNone key =
+            Json.setLensPartial (Json.Object_ >??> key_ key) (Json.Null ())
+
+        let inline writeUnlessDefault key def value =
+            match value with
+            | v when v = def -> Json.ofResult <| Value ()
+            | _ -> write key value
 
         (* Serialization/Deserialization *)
 
@@ -924,6 +935,6 @@ module Patterns =
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
     let inline (|Property|_|) key =
-            Lens.getPartial (Json.ObjectPLens >??> mapPLens key)
+            Lens.getPartial (Json.Object_ >??> key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
                                                          | _ -> None)
