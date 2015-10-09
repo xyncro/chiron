@@ -335,3 +335,37 @@ let ``Json.format escapes object keys correctly`` () =
     let formatted = Json.format serialized
 
     formatted =! """{"\u001F":"abc"}"""
+
+module Json =
+    let ofDayOfWeek (e : DayOfWeek) =
+        e.ToString "G"
+        |> String
+    let toDayOfWeek json =
+        match json with
+        | String s ->
+            match Enum.TryParse<DayOfWeek> s with
+            | true, x -> Value x
+            | _ -> Error (sprintf "Unable to parse %s as a DayOfWeek" s)
+        | _ -> Error (sprintf "Unable to parse %A as a DayOfWeek" json)
+
+type MyDayOfWeekObject =
+    { Bool : bool
+      Day : DayOfWeek }
+    static member ToJson (x:MyDayOfWeekObject) =
+           Json.write "bool" x.Bool
+        *> Json.writeWith Json.ofDayOfWeek "day_of_week" x.Day
+    static member FromJson (_:MyDayOfWeekObject) =
+        fun b d -> { Bool = b; Day = d }
+        <!> Json.read "bool"
+        <*> Json.readWith Json.toDayOfWeek "day_of_week"
+
+let deserializedMonday = { Bool = true; Day = DayOfWeek.Monday }
+let serializedMonday = Object (Map.ofList ["bool", Bool true; "day_of_week", String "Monday"])
+
+[<Test>]
+let ``Json.readWith allows using a custom deserialization function`` () =
+    Json.deserialize serializedMonday =! deserializedMonday
+
+[<Test>]
+let ``Json.writeWith allows using a custom serialization function`` () =
+    Json.serialize deserializedMonday =! serializedMonday

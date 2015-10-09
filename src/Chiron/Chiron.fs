@@ -884,30 +884,45 @@ module Mapping =
 
         (* Read/Write *)
 
-        let inline read key =
+        let inline readWith fromJson key =
                 fromJson >> Json.ofResult
             =<< Json.getLensPartial (Json.Object_ >??> key_ key)
 
-        let inline readOrDefault key def =
+        let inline read key =
+            readWith fromJson key
+
+        let inline readWithOrDefault fromJson key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
             =<< Json.tryGetLensPartial (Json.Object_ >??> key_ key)
 
-        let inline tryRead key =
+        let inline readOrDefault key def =
+            readWithOrDefault fromJson key def
+
+        let inline tryReadWith fromJson key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
             =<< Json.tryGetLensPartial (Json.Object_ >??> key_ key)
 
-        let inline write key value =
+        let inline tryRead key =
+            tryReadWith fromJson key
+
+        let inline writeWith toJson key value =
             Json.setLensPartial (Json.Object_ >??> key_ key) (toJson value)
+
+        let inline write key value =
+            writeWith toJson key value
+
+        let inline writeWithUnlessDefault toJson key def value =
+            match value with
+            | v when v = def -> Json.ofResult <| Value ()
+            | _ -> writeWith toJson key value
+
+        let inline writeUnlessDefault key def value =
+            writeWithUnlessDefault toJson key def value
 
         let inline writeNone key =
             Json.setLensPartial (Json.Object_ >??> key_ key) (Json.Null ())
-
-        let inline writeUnlessDefault key def value =
-            match value with
-            | v when v = def -> Json.ofResult <| Value ()
-            | _ -> write key value
 
         (* Serialization/Deserialization *)
 
