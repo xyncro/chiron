@@ -9,6 +9,9 @@
 # Paket
 .paket/paket.exe
 
+# Fake
+.fake/
+
 # Temp
 temp
 
