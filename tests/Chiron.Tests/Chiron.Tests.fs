@@ -65,32 +65,32 @@ let private lens_ =
     >??> Json.Bool_
 
 [<Test>]
-let ``Json.getLens returns correct values`` () =
-    Json.getLens id_ t1 =! (Value t1, t1)
+let ``Json.Lens.get returns correct values`` () =
+    Json.Lens.get id_ t1 =! (Value t1, t1)
 
 [<Test>]
-let ``Json.getLensPartial returns correct values`` () =
-    Json.getLensPartial lens_ t1 =! (Value true, t1)
+let ``Json.Lens.getPartial returns correct values`` () =
+    Json.Lens.getPartial lens_ t1 =! (Value true, t1)
 
 [<Test>]
-let ``Json.tryGetLensPartial returns correct values`` () =
-    Json.tryGetLensPartial Json.Number_ t1 =! (Value None, t1)
+let ``Json.Lens.tryGetPartial returns correct values`` () =
+    Json.Lens.tryGetPartial Json.Number_ t1 =! (Value None, t1)
 
 [<Test>]
-let ``Json.setLens returns correct values`` () =
-    Json.setLens id_ (Bool false) t1 =! (Value (), Bool false)
+let ``Json.Lens.set returns correct values`` () =
+    Json.Lens.set id_ (Bool false) t1 =! (Value (), Bool false)
 
 [<Test>]
-let ``Json.setLensPartial returns correct values`` () =
-    Json.setLensPartial lens_ false t1 =! (Value (), t2)
+let ``Json.Lens.setPartial returns correct values`` () =
+    Json.Lens.setPartial lens_ false t1 =! (Value (), t2)
 
 [<Test>]
-let ``Json.mapLens returns correct values`` () =
-    Json.mapLens id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
+let ``Json.Lens.map returns correct values`` () =
+    Json.Lens.map id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
 
 [<Test>]
-let ``Json.mapLensPartial returns correct values`` () =
-    Json.mapLensPartial lens_ not t1 =! (Value (), t2)
+let ``Json.Lens.mapPartial returns correct values`` () =
+    Json.Lens.mapPartial lens_ not t1 =! (Value (), t2)
 
 (* Parsing *)
 
@@ -335,3 +335,37 @@ let ``Json.format escapes object keys correctly`` () =
     let formatted = Json.format serialized
 
     formatted =! """{"\u001F":"abc"}"""
+
+module Json =
+    let ofDayOfWeek (e : DayOfWeek) =
+        e.ToString "G"
+        |> String
+    let toDayOfWeek json =
+        match json with
+        | String s ->
+            match Enum.TryParse<DayOfWeek> s with
+            | true, x -> Value x
+            | _ -> Error (sprintf "Unable to parse %s as a DayOfWeek" s)
+        | _ -> Error (sprintf "Unable to parse %A as a DayOfWeek" json)
+
+type MyDayOfWeekObject =
+    { Bool : bool
+      Day : DayOfWeek }
+    static member ToJson (x:MyDayOfWeekObject) =
+           Json.write "bool" x.Bool
+        *> Json.writeWith Json.ofDayOfWeek "day_of_week" x.Day
+    static member FromJson (_:MyDayOfWeekObject) =
+        fun b d -> { Bool = b; Day = d }
+        <!> Json.read "bool"
+        <*> Json.readWith Json.toDayOfWeek "day_of_week"
+
+let deserializedMonday = { Bool = true; Day = DayOfWeek.Monday }
+let serializedMonday = Object (Map.ofList ["bool", Bool true; "day_of_week", String "Monday"])
+
+[<Test>]
+let ``Json.readWith allows using a custom deserialization function`` () =
+    Json.deserialize serializedMonday =! deserializedMonday
+
+[<Test>]
+let ``Json.writeWith allows using a custom serialization function`` () =
+    Json.serialize deserializedMonday =! serializedMonday
