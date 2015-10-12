@@ -585,31 +585,23 @@ module Formatting =
 
         join
 
+    let private idRight =
+      fun _ x -> x
+
     type JsonFormattingOptions =
-      { Indent : string
-        Spacing : string
-        NewLine : string }
+      { Spacing : StringBuilder -> StringBuilder
+        NewLine : int -> StringBuilder -> StringBuilder }
       static member Compact =
-        { Indent = ""
-          Spacing = ""
-          NewLine = "" }
+        { Spacing = id
+          NewLine = idRight }
       static member SingleLine =
-        { Indent = ""
-          Spacing = " "
-          NewLine = "" }
+        { Spacing = append " "
+          NewLine = idRight }
       static member Pretty =
-        { Indent = "  "
-          Spacing = " "
-          NewLine = "\n" }
+        { Spacing = append " "
+          NewLine = fun level -> append "\n" >> append (String.replicate level "  ") }
 
     (* Formatters *)
-
-    let inline private appendSpacing opts =
-      append opts.Spacing
-
-    let inline private appendNewLine level opts =
-      appendSpacing opts
-      >> append (opts.NewLine + String.replicate level opts.Indent)
 
     let rec private formatJson level opts =
         function | Array x -> formatArray level opts x
@@ -623,9 +615,9 @@ module Formatting =
         let nextLevel = level + 1
         function | x ->
                        append "["
-                    >> appendNewLine nextLevel opts
-                    >> join (formatJson nextLevel opts) (append "," >> appendNewLine nextLevel opts) x
-                    >> appendNewLine level opts
+                    >> opts.NewLine nextLevel
+                    >> join (formatJson nextLevel opts) (append "," >> opts.NewLine nextLevel) x
+                    >> opts.NewLine level
                     >> append "]"
 
     and private formatBool =
@@ -642,11 +634,11 @@ module Formatting =
         let nextLevel = level + 1
         function | x -> 
                        append "{" 
-                    >> appendNewLine nextLevel opts
-                    >> join (fun (k, v) -> appendf "\"{0}\":" (Escaping.escape k) >> appendSpacing opts >> formatJson nextLevel opts v)
-                            (append "," >> appendNewLine nextLevel opts)
+                    >> opts.NewLine nextLevel
+                    >> join (fun (k, v) -> appendf "\"{0}\":" (Escaping.escape k) >> opts.Spacing >> formatJson nextLevel opts v)
+                            (append "," >> opts.NewLine nextLevel)
                             (Map.toList x)
-                    >> appendNewLine level opts
+                    >> opts.NewLine level
                     >> append "}"
 
     and private formatString =
