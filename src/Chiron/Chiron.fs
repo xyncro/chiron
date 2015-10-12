@@ -585,20 +585,47 @@ module Formatting =
 
         join
 
+    type JsonFormattingOptions =
+      { Indent : string
+        Spacing : string
+        NewLine : string }
+      static member Compact =
+        { Indent = ""
+          Spacing = ""
+          NewLine = "" }
+      static member SingleLine =
+        { Indent = ""
+          Spacing = " "
+          NewLine = "" }
+      static member Pretty =
+        { Indent = "  "
+          Spacing = " "
+          NewLine = "\n" }
+
     (* Formatters *)
 
-    let rec private formatJson =
-        function | Array x -> formatArray x
+    let inline private appendSpacing opts =
+      append opts.Spacing
+
+    let inline private appendNewLine level opts =
+      appendSpacing opts
+      >> append (opts.NewLine + String.replicate level opts.Indent)
+
+    let rec private formatJson level opts =
+        function | Array x -> formatArray level opts x
                  | Bool x -> formatBool x
                  | Number x -> formatNumber x
                  | Null _ -> formatNull ()
-                 | Object x -> formatObject x
+                 | Object x -> formatObject level opts x
                  | String x -> formatString x
 
-    and private formatArray =
+    and private formatArray level opts =
+        let nextLevel = level + 1
         function | x ->
-                       append "[" 
-                    >> join formatJson (append ",") x 
+                       append "["
+                    >> appendNewLine nextLevel opts
+                    >> join (formatJson nextLevel opts) (append "," >> appendNewLine nextLevel opts) x
+                    >> appendNewLine level opts
                     >> append "]"
 
     and private formatBool =
@@ -611,12 +638,15 @@ module Formatting =
     and private formatNull =
         function | () -> append "null"
 
-    and private formatObject =
+    and private formatObject level opts =
+        let nextLevel = level + 1
         function | x -> 
                        append "{" 
-                    >> join (fun (k, v) -> appendf "\"{0}\":" (Escaping.escape k) >> formatJson v)
-                            (append ",")
-                            (Map.toList x) 
+                    >> appendNewLine nextLevel opts
+                    >> join (fun (k, v) -> appendf "\"{0}\":" (Escaping.escape k) >> appendSpacing opts >> formatJson nextLevel opts v)
+                            (append "," >> appendNewLine nextLevel opts)
+                            (Map.toList x)
+                    >> appendNewLine level opts
                     >> append "}"
 
     and private formatString =
@@ -629,7 +659,12 @@ module Formatting =
 
         let format json =
             StringBuilder ()
-            |> formatJson json
+            |> formatJson 0 JsonFormattingOptions.Compact json
+            |> string
+
+        let formatOpt opts json =
+            StringBuilder ()
+            |> formatJson 0 opts json
             |> string
 
 (* Mapping
