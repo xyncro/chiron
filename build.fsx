@@ -34,14 +34,13 @@ Target "Publish" (fun _ ->
                   "Henrik Feldt"
                   "Marcus Griep" ]
               Project = "Chiron"
-              Version = "5.2.0"
+              Version = "5.2.1"
               OutputPath = "bin"
               AccessKey = getBuildParamOrDefault "nuget_key" ""
               Publish = hasBuildParam "nuget_key"
               Dependencies =
                 [ "Aether", GetPackageVersion "packages" "Aether"
-                  "FParsec", GetPackageVersion "packages" "FParsec"
-                  "FSharp.Core", GetPackageVersion "packages" "FSharp.Core" ]
+                  "FParsec", GetPackageVersion "packages" "FParsec" ]
               Files = 
                 [ @"..\src\Chiron\bin\Release\Chiron.dll", Some "lib/net45", None
                   @"..\src\Chiron\bin\Release\Chiron.pdb", Some "lib/net45", None
