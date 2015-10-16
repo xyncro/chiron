@@ -2,7 +2,6 @@ source http://nuget.org/api/v2
 
 nuget Aether
 nuget FParsec
-nuget FSharp.Core 3.1.2.1
 nuget Fake
 nuget FsCheck
 nuget Nuget.CommandLine
