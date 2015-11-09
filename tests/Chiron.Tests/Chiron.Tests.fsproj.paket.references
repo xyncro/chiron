@@ -1,4 +1,8 @@
 Aether
-NUnit
-Unquote
-FsCheck
+
+group Test
+
+  FSharp.Core
+  FsCheck
+  NUnit
+  Unquote

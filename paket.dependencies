@@ -1,10 +1,21 @@
 source http://nuget.org/api/v2
 
-nuget Aether
+nuget Aether 8.0.0-b2
 nuget FParsec
-nuget Fake
-nuget FsCheck
-nuget Nuget.CommandLine
-nuget NUnit
-nuget NUnit.Runners
-nuget Unquote
+
+group Build
+
+  source http://nuget.org/api/v2
+
+  nuget Fake
+
+group Test
+
+  framework: >= net45
+  source http://nuget.org/api/v2
+
+  nuget FSharp.Core 3.1.2.5 redirects: on
+  nuget FsCheck
+  nuget NUnit
+  nuget NUnit.Runners
+  nuget Unquote

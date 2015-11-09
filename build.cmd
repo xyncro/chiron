@@ -7,4 +7,4 @@ if not exist .paket\paket.exe (
 .paket\paket.exe restore
 
 set encoding=utf-8
-packages\FAKE\tools\FAKE.exe build.fsx %*
+packages\build\FAKE\tools\FAKE.exe build.fsx %*

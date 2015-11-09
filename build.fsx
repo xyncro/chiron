@@ -1,14 +1,16 @@
-#I "packages/FAKE/tools"
-#r "packages/FAKE/tools/FakeLib.dll"
+#I "packages/build/FAKE/tools"
+#r "packages/build/FAKE/tools/FakeLib.dll"
 
 open Fake
+
+// Dirs
+
+let tempDir = "temp"
 
 // Clean
 
 Target "Clean" (fun _ ->
-    CleanDirs [
-        "bin"
-        "temp" ])
+    CleanDirs [ tempDir ])
 
 // Build
 
@@ -21,39 +23,28 @@ Target "Build" (fun _ ->
                   "Configuration", environVarOrDefault "Build.Configuration" "Release" ]
             Targets =
                 [ "Build" ]
-            Verbosity = Some Normal }) "Chiron.sln")
+            Verbosity = Some Quiet }) "Chiron.sln")
 
-// Publish
+// Package
 
-Target "Publish" (fun _ ->
-    NuGet (fun p ->
+Target "Pack" (fun _ ->
+    Paket.Pack (fun p ->
         { p with
-              Authors =
-                [ "Andrew Cherry"
-                  "Michael Newton"
-                  "Henrik Feldt"
-                  "Marcus Griep" ]
-              Project = "Chiron"
-              Version = "5.2.1"
-              OutputPath = "bin"
-              AccessKey = getBuildParamOrDefault "nuget_key" ""
-              Publish = hasBuildParam "nuget_key"
-              Dependencies =
-                [ "Aether", GetPackageVersion "packages" "Aether"
-                  "FParsec", GetPackageVersion "packages" "FParsec" ]
-              Files = 
-                [ @"..\src\Chiron\bin\Release\Chiron.dll", Some "lib/net45", None
-                  @"..\src\Chiron\bin\Release\Chiron.pdb", Some "lib/net45", None
-                  @"..\src\Chiron\bin\Release\Chiron.xml", Some "lib/net45", None ] })
-              "./nuget/Chiron.nuspec")
+            OutputPath = tempDir }))
+
+Target "Push" (fun _ ->
+    Paket.Push (fun p ->
+        { p with
+            WorkingDir = tempDir }))
 
 // Dependencies
 
+Target "Default" DoNothing
+
 "Clean"
     ==> "Build"
-#if MONO
-#else
-    ==> "Publish"
-#endif
+    ==> "Pack"
+    =?> ("Push", Option.isSome (environVarOrNone "nugetkey"))
+    ==> "Default"
 
-RunTargetOrDefault "Publish"
+RunTargetOrDefault "Default"

@@ -17,9 +17,9 @@ type TestRecord =
         <*> Json.read "dateTimeField"
 
     static member ToJson { StringField = s; GuidField = g; DateTimeField = d } =
-        Json.write "stringField" s
-        *> Json.write "guidField" g
-        *> Json.write "dateTimeField" d
+            Json.write "stringField" s
+         *> Json.write "guidField" g
+         *> Json.write "dateTimeField" d
 
 let inline roundTrip (thing : 'a) : 'a =
     Json.serialize thing

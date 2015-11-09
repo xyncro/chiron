@@ -1,13 +1,23 @@
 NUGET
   remote: http://nuget.org/api/v2
   specs:
-    Aether (7.0.1)
-    FAKE (4.7.1)
+    Aether (8.0.0-b2)
     FParsec (1.0.2)
-    FsCheck (2.1.0)
+
+GROUP Build
+NUGET
+  remote: http://nuget.org/api/v2
+  specs:
+    FAKE (4.8.0)
+
+GROUP Test
+FRAMEWORK: >= NET45
+NUGET
+  remote: http://nuget.org/api/v2
+  specs:
+    FsCheck (2.2.1)
       FSharp.Core (>= 3.1.2.5)
-    FSharp.Core (4.0.0.1)
-    NuGet.CommandLine (2.8.6)
+    FSharp.Core (3.1.2.5) - redirects: on
     NUnit (2.6.4)
     NUnit.Runners (2.6.4)
     Unquote (3.1.0)
