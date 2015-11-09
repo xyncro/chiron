@@ -59,9 +59,9 @@ let ``Json.map2 returns correct values`` () =
    Tests to exercise the functional lens based access to Json
    data structures. *)
 
-let private lens_ =
+let private prism_ =
          Json.Object_
-    >??> key_ "bool"
+    >??> Map.key_ "bool"
     >??> Json.Bool_
 
 [<Test>]
@@ -69,28 +69,28 @@ let ``Json.Lens.get returns correct values`` () =
     Json.Lens.get id_ t1 =! (Value t1, t1)
 
 [<Test>]
-let ``Json.Lens.getPartial returns correct values`` () =
-    Json.Lens.getPartial lens_ t1 =! (Value true, t1)
+let ``Json.Prism.get returns correct values`` () =
+    Json.Prism.get prism_ t1 =! (Value true, t1)
 
 [<Test>]
-let ``Json.Lens.tryGetPartial returns correct values`` () =
-    Json.Lens.tryGetPartial Json.Number_ t1 =! (Value None, t1)
+let ``Json.Prism.tryGet returns correct values`` () =
+    Json.Prism.tryGet Json.Number_ t1 =! (Value None, t1)
 
 [<Test>]
 let ``Json.Lens.set returns correct values`` () =
     Json.Lens.set id_ (Bool false) t1 =! (Value (), Bool false)
 
 [<Test>]
-let ``Json.Lens.setPartial returns correct values`` () =
-    Json.Lens.setPartial lens_ false t1 =! (Value (), t2)
+let ``Json.Prism.set returns correct values`` () =
+    Json.Prism.set prism_ false t1 =! (Value (), t2)
 
 [<Test>]
 let ``Json.Lens.map returns correct values`` () =
     Json.Lens.map id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
 
 [<Test>]
-let ``Json.Lens.mapPartial returns correct values`` () =
-    Json.Lens.mapPartial lens_ not t1 =! (Value (), t2)
+let ``Json.Prism.map returns correct values`` () =
+    Json.Prism.map prism_ not t1 =! (Value (), t2)
 
 (* Parsing *)
 

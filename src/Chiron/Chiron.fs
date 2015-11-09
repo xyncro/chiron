@@ -168,10 +168,10 @@ module Operators =
         Json.map2 (fun x _ -> x) m1 m2
 
     let inline (>=>) m1 m2 =
-        Json.bind m1 m2
+        Json.bind (fun x -> m1 x) m2
 
     let inline (<=<) m1 m2 =
-        Json.bind m2 m1
+        Json.bind (fun x -> m2 x) m1
 
 (* Builder
 
@@ -226,35 +226,56 @@ module Optics =
                 fun json ->
                     Value (Lens.get l json), json
 
+            [<Obsolete ("Use Json.Prism.get instead.")>]
+            let getPartial p : Json<_> =
+                fun json ->
+                    match Prism.get p json with
+                    | Some x -> Value x, json
+                    | _ -> Error (sprintf "Couldn't use Prism %A on JSON: '%A'." p json), json
+
+            [<Obsolete ("Use Json.Prism.tryGet instead.")>]
+            let tryGetPartial p : Json<_> =
+                fun json ->
+                    Value (Prism.get p json), json
+
             let set l v : Json<_> =
                 fun json ->
                     Value (), Lens.set l v json
 
+            [<Obsolete ("Use Json.Prism.set instead.")>]
+            let setPartial p v : Json<_> =
+                fun json ->
+                    Value (), Prism.set p v json
 
             let map l f : Json<_> =
                 fun json ->
                     Value (), Lens.map l f json
 
+            [<Obsolete ("Use Json.Prism.map instead.")>]
+            let mapPartial p f : Json<_> =
+                fun json ->
+                    Value (), Prism.map p f json
+
         [<RequireQualifiedAccess>]
         module Prism =
 
-            let get l : Json<_> =
+            let get p : Json<_> =
                 fun json ->
-                    match Lens.getPartial l json with
+                    match Prism.get p json with
                     | Some x -> Value x, json
-                    | _ -> Error (sprintf "Couldn't use Prism %A on JSON: '%A'." l json), json
+                    | _ -> Error (sprintf "Couldn't use Prism %A on JSON: '%A'." p json), json
 
-            let tryGet l : Json<_> =
+            let tryGet p : Json<_> =
                 fun json ->
-                    Value (Lens.getPartial l json), json
+                    Value (Prism.get p json), json
 
-            let set l v : Json<_> =
+            let set p v : Json<_> =
                 fun json ->
-                    Value (), Lens.setPartial l v json
+                    Value (), Prism.set p v json
 
-            let map l f : Json<_> =
+            let map p f : Json<_> =
                 fun json ->
-                    Value (), Lens.mapPartial l f json
+                    Value (), Prism.map p f json
 
         (* Backwards Compatibility
 
@@ -784,13 +805,13 @@ module Mapping =
         (* Arrays *)
 
         static member inline FromJson (_: 'a array) : Json<'a array> =
-                fromJsonFold Array.empty (fun x xs -> Array.append [| x |] xs) >> Json.ofResult
+                fromJsonFold [||] (fun x xs -> Array.append [| x |] xs) >> Json.ofResult
             =<< Json.Prism.get Json.Array_
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
-                fromJsonFold List.empty (fun x xs -> x :: xs) >> Json.ofResult
+                fromJsonFold [] (fun x xs -> x :: xs) >> Json.ofResult
             =<< Json.Prism.get Json.Array_
 
         (* Maps *)
@@ -817,7 +838,7 @@ module Mapping =
         (* Tuples *)
 
         static member inline FromJson (_: 'a * 'b) : Json<'a * 'b> =
-                function | a :: b :: [] ->
+                function | a :: [b] ->
                                 fun a b -> a, b
                             <!> Json.ofResult (fromJson a)
                             <*> Json.ofResult (fromJson b)
@@ -826,7 +847,7 @@ module Mapping =
             =<< Json.Prism.get Json.Array_
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
-                function | a :: b :: c :: [] ->
+                function | a :: b :: [c] ->
                                 fun a b c -> a, b, c
                             <!> Json.ofResult (fromJson a)
                             <*> Json.ofResult (fromJson b)
@@ -957,7 +978,7 @@ module Mapping =
 
         let inline readWith fromJson key =
                 fromJson >> Json.ofResult
-            =<< Json.Prism.get (Json.Object_ >??> key_ key)
+            =<< Json.Prism.get (Json.Object_ >??> Map.key_ key)
 
         let inline read key =
             readWith fromJson key
@@ -965,7 +986,7 @@ module Mapping =
         let inline readWithOrDefault fromJson key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
-            =<< Json.Prism.tryGet (Json.Object_ >??> key_ key)
+            =<< Json.Prism.tryGet (Json.Object_ >??> Map.key_ key)
 
         let inline readOrDefault key def =
             readWithOrDefault fromJson key def
@@ -973,13 +994,13 @@ module Mapping =
         let inline tryReadWith fromJson key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
-            =<< Json.Prism.tryGet (Json.Object_ >??> key_ key)
+            =<< Json.Prism.tryGet (Json.Object_ >??> Map.key_ key)
 
         let inline tryRead key =
             tryReadWith fromJson key
 
         let inline writeWith toJson key value =
-            Json.Prism.set (Json.Object_ >??> key_ key) (toJson value)
+            Json.Prism.map Json.Object_ (Map.add key (toJson value))
 
         let inline write key value =
             writeWith toJson key value
@@ -993,7 +1014,7 @@ module Mapping =
             writeWithUnlessDefault toJson key def value
 
         let inline writeNone key =
-            Json.Prism.set (Json.Object_ >??> key_ key) (Json.Null ())
+            Json.Prism.map Json.Object_ (Map.add key (Json.Null ()))
 
         (* Serialization/Deserialization *)
 
@@ -1021,6 +1042,6 @@ module Patterns =
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
     let inline (|Property|_|) key =
-            Lens.getPartial (Json.Object_ >??> key_ key)
+            Prism.get (Json.Object_ >??> Map.key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
                                                          | _ -> None)

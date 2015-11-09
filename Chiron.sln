@@ -31,11 +31,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7BA60919
 		tests\Chiron.Tests\Chiron.Tests.fsproj.paket.references = tests\Chiron.Tests\Chiron.Tests.fsproj.paket.references
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nuget", "nuget", "{F87BBE06-BC6A-4C39-AB27-C906CE8F761F}"
-	ProjectSection(SolutionItems) = preProject
-		nuget\Chiron.nuspec = nuget\Chiron.nuspec
-	EndProjectSection
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fake", "fake", "{21B241CF-5EC0-40D9-80E3-3F6016F9B31F}"
 	ProjectSection(SolutionItems) = preProject
 		build.cmd = build.cmd
@@ -43,6 +38,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fake", "fake", "{21B241CF-5
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{E3D6C8D9-C156-414B-A293-97147CB020BC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7EC59692-3139-46DF-BFE6-9151C13484E2}"
+	ProjectSection(SolutionItems) = preProject
+		src\Chiron\Chiron.fsproj.paket.template = src\Chiron\Chiron.fsproj.paket.template
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,8 +69,8 @@ Global
 		{A9BA802C-64D5-4706-8465-657F8AF7180F} = {2096F0EA-E379-4C9A-8546-680617B7CC1E}
 		{D85F3E6B-3A52-4099-953E-06B9766538A4} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
 		{7BA60919-04CD-4D84-AFA7-A2F908541D95} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
-		{F87BBE06-BC6A-4C39-AB27-C906CE8F761F} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
 		{21B241CF-5EC0-40D9-80E3-3F6016F9B31F} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
 		{E3D6C8D9-C156-414B-A293-97147CB020BC} = {2096F0EA-E379-4C9A-8546-680617B7CC1E}
+		{7EC59692-3139-46DF-BFE6-9151C13484E2} = {E3D6C8D9-C156-414B-A293-97147CB020BC}
 	EndGlobalSection
 EndGlobal
