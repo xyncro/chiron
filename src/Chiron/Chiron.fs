@@ -226,35 +226,13 @@ module Optics =
                 fun json ->
                     Value (Lens.get l json), json
 
-            [<Obsolete ("Use Json.Prism.get instead.")>]
-            let getPartial p : Json<_> =
-                fun json ->
-                    match Prism.get p json with
-                    | Some x -> Value x, json
-                    | _ -> Error (sprintf "Couldn't use Prism %A on JSON: '%A'." p json), json
-
-            [<Obsolete ("Use Json.Prism.tryGet instead.")>]
-            let tryGetPartial p : Json<_> =
-                fun json ->
-                    Value (Prism.get p json), json
-
             let set l v : Json<_> =
                 fun json ->
                     Value (), Lens.set l v json
 
-            [<Obsolete ("Use Json.Prism.set instead.")>]
-            let setPartial p v : Json<_> =
-                fun json ->
-                    Value (), Prism.set p v json
-
             let map l f : Json<_> =
                 fun json ->
                     Value (), Lens.map l f json
-
-            [<Obsolete ("Use Json.Prism.map instead.")>]
-            let mapPartial p f : Json<_> =
-                fun json ->
-                    Value (), Prism.map p f json
 
         [<RequireQualifiedAccess>]
         module Prism =
@@ -276,39 +254,6 @@ module Optics =
             let map p f : Json<_> =
                 fun json ->
                     Value (), Prism.map p f json
-
-        (* Backwards Compatibility
-
-           These functions are deprecated and will be removed in favour of the 
-           Json.Lens.* formulation. *)
-
-        [<Obsolete ("Use Json.Lens.get instead.")>]
-        let getLens =
-            Lens.get
-
-        [<Obsolete ("Use Json.Prism.get instead.")>]
-        let getLensPartial =
-            Prism.get
-
-        [<Obsolete ("Use Json.Prism.tryGet instead.")>]
-        let tryGetLensPartial =
-            Prism.tryGet
-
-        [<Obsolete ("Use Json.Lens.set instead.")>]
-        let setLens =
-            Lens.set
-
-        [<Obsolete ("Use Json.Prism.set instead.")>]
-        let setLensPartial =
-            Prism.set
-
-        [<Obsolete ("Use Json.Lens.map instead.")>]
-        let mapLens =
-            Lens.map
-
-        [<Obsolete ("Use Json.Prism.map instead.")>]
-        let mapLensPartial =
-            Prism.map
 
 (* Escaping
 
@@ -1000,7 +945,7 @@ module Mapping =
             tryReadWith fromJson key
 
         let inline writeWith toJson key value =
-            Json.Prism.map Json.Object_ (Map.add key (toJson value))
+            Json.Prism.set (Json.Object_ >?-> Map.value_ key >??> Option.value_) (toJson value)
 
         let inline write key value =
             writeWith toJson key value
@@ -1014,7 +959,7 @@ module Mapping =
             writeWithUnlessDefault toJson key def value
 
         let inline writeNone key =
-            Json.Prism.map Json.Object_ (Map.add key (Json.Null ()))
+            Json.Prism.set (Json.Object_ >?-> Map.value_ key >??> Option.value_) (Json.Null ())
 
         (* Serialization/Deserialization *)
 
