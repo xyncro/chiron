@@ -921,14 +921,14 @@ module Mapping =
 
         (* Read/Write *)
 
-        let inline readWith fromJson key =
+        let readWith fromJson key =
                 fromJson >> Json.ofResult
             =<< Json.Prism.get (Json.Object_ >??> Map.key_ key)
 
         let inline read key =
             readWith fromJson key
 
-        let inline readWithOrDefault fromJson key def =
+        let readWithOrDefault fromJson key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
             =<< Json.Prism.tryGet (Json.Object_ >??> Map.key_ key)
@@ -936,7 +936,7 @@ module Mapping =
         let inline readOrDefault key def =
             readWithOrDefault fromJson key def
 
-        let inline tryReadWith fromJson key =
+        let tryReadWith fromJson key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
             =<< Json.Prism.tryGet (Json.Object_ >??> Map.key_ key)
@@ -944,13 +944,13 @@ module Mapping =
         let inline tryRead key =
             tryReadWith fromJson key
 
-        let inline writeWith toJson key value =
-            Json.Prism.set (Json.Object_ >?-> Map.value_ key >??> Option.value_) (toJson value)
+        let writeWith toJson key value =
+            Json.Prism.set (Json.Object_ >?-> Map.value_ key) (Some (toJson value))
 
         let inline write key value =
             writeWith toJson key value
 
-        let inline writeWithUnlessDefault toJson key def value =
+        let writeWithUnlessDefault toJson key def value =
             match value with
             | v when v = def -> Json.ofResult <| Value ()
             | _ -> writeWith toJson key value
@@ -958,8 +958,8 @@ module Mapping =
         let inline writeUnlessDefault key def value =
             writeWithUnlessDefault toJson key def value
 
-        let inline writeNone key =
-            Json.Prism.set (Json.Object_ >?-> Map.value_ key >??> Option.value_) (Json.Null ())
+        let writeNone key =
+            Json.Prism.set (Json.Object_ >?-> Map.value_ key) (Some (Json.Null ()))
 
         (* Serialization/Deserialization *)
 
