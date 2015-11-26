@@ -57,22 +57,22 @@ type Json =
     (* Prisms *)
 
     static member Array_ =
-        id_ <-?> Json.Array__
+        id_ >- Json.Array__
 
     static member Bool_ =
-        id_ <-?> Json.Bool__
+        id_ >- Json.Bool__
 
     static member Null_ =
-        id_ <-?> Json.Null__
+        id_ >- Json.Null__
 
     static member Number_ =
-        id_ <-?> Json.Number__
+        id_ >- Json.Number__
 
     static member Object_ =
-        id_ <-?> Json.Object__
+        id_ >- Json.Object__
 
     static member String_ =
-        id_ <-?> Json.String__
+        id_ >- Json.String__
 
 (* Functional
 
@@ -923,7 +923,7 @@ module Mapping =
 
         let readWith fromJson key =
                 fromJson >> Json.ofResult
-            =<< Json.Prism.get (Json.Object_ >??> Map.key_ key)
+            =<< Json.Prism.get (Json.Object_ >? Map.key_ key)
 
         let inline read key =
             readWith fromJson key
@@ -931,7 +931,7 @@ module Mapping =
         let readWithOrDefault fromJson key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
-            =<< Json.Prism.tryGet (Json.Object_ >??> Map.key_ key)
+            =<< Json.Prism.tryGet (Json.Object_ >? Map.key_ key)
 
         let inline readOrDefault key def =
             readWithOrDefault fromJson key def
@@ -939,13 +939,13 @@ module Mapping =
         let tryReadWith fromJson key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
-            =<< Json.Prism.tryGet (Json.Object_ >??> Map.key_ key)
+            =<< Json.Prism.tryGet (Json.Object_ >? Map.key_ key)
 
         let inline tryRead key =
             tryReadWith fromJson key
 
         let writeWith toJson key value =
-            Json.Prism.set (Json.Object_ >?-> Map.value_ key) (Some (toJson value))
+            Json.Prism.set (Json.Object_ >? Map.value_ key) (Some (toJson value))
 
         let inline write key value =
             writeWith toJson key value
@@ -959,7 +959,7 @@ module Mapping =
             writeWithUnlessDefault toJson key def value
 
         let writeNone key =
-            Json.Prism.set (Json.Object_ >?-> Map.value_ key) (Some (Json.Null ()))
+            Json.Prism.set (Json.Object_ >? Map.value_ key) (Some (Json.Null ()))
 
         (* Serialization/Deserialization *)
 
@@ -987,6 +987,6 @@ module Patterns =
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
     let inline (|Property|_|) key =
-            Prism.get (Json.Object_ >??> Map.key_ key)
+            Prism.get (Json.Object_ >? Map.key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
                                                          | _ -> None)

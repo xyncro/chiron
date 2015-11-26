@@ -1,6 +1,6 @@
 source http://nuget.org/api/v2
 
-nuget Aether 8.0.0-b3
+nuget Aether 8.0.0-b4
 nuget FParsec
 
 group Build
