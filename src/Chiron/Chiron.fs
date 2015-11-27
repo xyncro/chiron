@@ -255,6 +255,21 @@ module Optics =
                 fun json ->
                     Value (), Prism.map p f json
 
+        [<RequireQualifiedAccess>]
+        module Optic =
+
+            let inline get o : Json<_> =
+                fun json ->
+                    Value (Optic.get o json), json
+
+            let inline set o v : Json<_> =
+                fun json ->
+                    Value (), Optic.set o v json
+
+            let inline map o f : Json<_> =
+                fun json ->
+                    Value (), Optic.map o f json
+
 (* Escaping
 
    Functions for escaped string parsing and formatting, as a
