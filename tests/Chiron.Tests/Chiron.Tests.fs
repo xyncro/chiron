@@ -66,31 +66,31 @@ let private prism_ =
 
 [<Test>]
 let ``Json.Lens.get returns correct values`` () =
-    Json.Lens.get id_ t1 =! (Value t1, t1)
+    Json.Optic.get id_ t1 =! (Value t1, t1)
 
 [<Test>]
-let ``Json.Prism.get returns correct values`` () =
-    Json.Prism.get prism_ t1 =! (Value true, t1)
+let ``Json.Optic.get with Lens returns correct values`` () =
+    Json.Optic.get prism_ t1 =! (Value true, t1)
 
 [<Test>]
-let ``Json.Prism.tryGet returns correct values`` () =
-    Json.Prism.tryGet Json.Number_ t1 =! (Value None, t1)
+let ``Json.Optic.tryGet with Prism returns correct values`` () =
+    Json.Optic.tryGet Json.Number_ t1 =! (Value None, t1)
 
 [<Test>]
-let ``Json.Lens.set returns correct values`` () =
-    Json.Lens.set id_ (Bool false) t1 =! (Value (), Bool false)
+let ``Json.Optic.set with Lens returns correct values`` () =
+    Json.Optic.set id_ (Bool false) t1 =! (Value (), Bool false)
 
 [<Test>]
-let ``Json.Prism.set returns correct values`` () =
-    Json.Prism.set prism_ false t1 =! (Value (), t2)
+let ``Json.Optic.set with Prism returns correct values`` () =
+    Json.Optic.set prism_ false t1 =! (Value (), t2)
 
 [<Test>]
-let ``Json.Lens.map returns correct values`` () =
-    Json.Lens.map id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
+let ``Json.Optic.map with Lens returns correct values`` () =
+    Json.Optic.map id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
 
 [<Test>]
-let ``Json.Prism.map returns correct values`` () =
-    Json.Prism.map prism_ not t1 =! (Value (), t2)
+let ``Json.Optic.map with Prism returns correct values`` () =
+    Json.Optic.map prism_ not t1 =! (Value (), t2)
 
 (* Parsing *)
 

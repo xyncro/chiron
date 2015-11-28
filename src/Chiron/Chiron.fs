@@ -4,7 +4,6 @@ open System
 open System.Globalization
 open System.Text
 open Aether
-open Aether.Operators
 open FParsec
 
 (* RFC 7159
@@ -57,22 +56,22 @@ type Json =
     (* Prisms *)
 
     static member Array_ =
-        id_ >- Json.Array__
+        Prism.ofEpimorphism Json.Array__
 
     static member Bool_ =
-        id_ >- Json.Bool__
+        Prism.ofEpimorphism Json.Bool__
 
     static member Null_ =
-        id_ >- Json.Null__
+        Prism.ofEpimorphism Json.Null__
 
     static member Number_ =
-        id_ >- Json.Number__
+        Prism.ofEpimorphism Json.Number__
 
     static member Object_ =
-        id_ >- Json.Object__
+        Prism.ofEpimorphism Json.Object__
 
     static member String_ =
-        id_ >- Json.String__
+        Prism.ofEpimorphism Json.String__
 
 (* Functional
 
@@ -220,47 +219,37 @@ module Optics =
     module Json =
 
         [<RequireQualifiedAccess>]
-        module Lens =
-
-            let get l : Json<_> =
-                fun json ->
-                    Value (Lens.get l json), json
-
-            let set l v : Json<_> =
-                fun json ->
-                    Value (), Lens.set l v json
-
-            let map l f : Json<_> =
-                fun json ->
-                    Value (), Lens.map l f json
-
-        [<RequireQualifiedAccess>]
-        module Prism =
-
-            let get p : Json<_> =
-                fun json ->
-                    match Prism.get p json with
-                    | Some x -> Value x, json
-                    | _ -> Error (sprintf "Couldn't use Prism %A on JSON: '%A'." p json), json
-
-            let tryGet p : Json<_> =
-                fun json ->
-                    Value (Prism.get p json), json
-
-            let set p v : Json<_> =
-                fun json ->
-                    Value (), Prism.set p v json
-
-            let map p f : Json<_> =
-                fun json ->
-                    Value (), Prism.map p f json
-
-        [<RequireQualifiedAccess>]
         module Optic =
 
+            type Get =
+                | Get with
+
+                static member (^.) (Get, l: Lens<Json,'b>) : Json<_> =
+                    fun json ->
+                        Value (Optic.get l json), json
+
+                static member (^.) (Get, p: Prism<Json,'b>) : Json<_> =
+                    fun json ->
+                        match Optic.get p json with
+                        | Some x -> Value x, json
+                        | _ -> Error (sprintf "Couldn't use Prism %A on JSON: '%A'" p json), json
+
             let inline get o : Json<_> =
-                fun json ->
-                    Value (Optic.get o json), json
+                (Get ^. o)
+
+            type TryGet =
+                | TryGet with
+
+                static member (^.) (TryGet, l: Lens<Json,'b>) : Json<_> =
+                    fun json ->
+                        Value (Some (Optic.get l json)), json
+
+                static member (^.) (TryGet, p: Prism<Json,'b>) : Json<_> =
+                    fun json ->
+                        Value (Optic.get p json), json
+
+            let inline tryGet o : Json<_> =
+                (TryGet ^. o)
 
             let inline set o v : Json<_> =
                 fun json ->
@@ -329,14 +318,14 @@ module internal Escaping =
                      | h :: t ->
                         let n =
                             match h with
-                            | '"' -> [ '\\'; '"' ]
+                            | '"'  -> [ '\\'; '"' ]
                             | '\\' -> [ '\\'; '\\' ]
                             | '\b' -> [ '\\'; 'b' ]
                             | '\f' -> [ '\\'; 'f' ]
                             | '\n' -> [ '\\'; 'n' ]
                             | '\r' -> [ '\\'; 'r' ]
                             | '\t' -> [ '\\'; 't' ]
-                            | x -> [ '\\'; 'u' ] @ [ for c in ((int x).ToString ("X4")) -> c ]
+                            | x ->    [ '\\'; 'u' ] @ [ for c in ((int x).ToString ("X4")) -> c ]
 
                         escape (r @ n) t
 
@@ -676,37 +665,37 @@ module Mapping =
         (* Basic Types *)
 
         static member inline FromJson (_: bool) =
-            Json.Prism.get Json.Bool_
+            Json.Optic.get Json.Bool_
 
         static member inline FromJson (_: decimal) =
-            id <!> Json.Prism.get Json.Number_
+            id <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: float) =
-            float <!> Json.Prism.get Json.Number_
+            float <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: int) =
-            int <!> Json.Prism.get Json.Number_
+            int <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: int16) =
-            int16 <!> Json.Prism.get Json.Number_
+            int16 <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: int64) =
-            int64 <!> Json.Prism.get Json.Number_
+            int64 <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: single) =
-            single <!> Json.Prism.get Json.Number_
+            single <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: string) =
-            Json.Prism.get Json.String_
+            Json.Optic.get Json.String_
 
         static member inline FromJson (_: uint16) =
-            uint16 <!> Json.Prism.get Json.Number_
+            uint16 <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: uint32) =
-            uint32 <!> Json.Prism.get Json.Number_
+            uint32 <!> Json.Optic.get Json.Number_
 
         static member inline FromJson (_: uint64) =
-            uint64 <!> Json.Prism.get Json.Number_
+            uint64 <!> Json.Optic.get Json.Number_
 
         (* Common Types *)
 
@@ -715,26 +704,26 @@ module Mapping =
                     match DateTime.TryParseExact (x, [| "s"; "r"; "o" |], null, DateTimeStyles.AdjustToUniversal) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetime"
-            =<< Json.Prism.get Json.String_
+            =<< Json.Optic.get Json.String_
 
         static member inline FromJson (_: DateTimeOffset) =
                 fun x ->
                     match DateTimeOffset.TryParseExact (x, [|"yyyy-MM-dd'T'HH:mm:ss.FFFK" |], null, DateTimeStyles.None) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetimeoffset"
-            =<< Json.Prism.get Json.String_
+            =<< Json.Optic.get Json.String_
 
         static member inline FromJson (_: Guid) =
                 fun x ->
                     match Guid.TryParse x with
                     | true, x -> Json.init x
                     | _ -> Json.error "guid"
-            =<< Json.Prism.get Json.String_
+            =<< Json.Optic.get Json.String_
 
         (* Json Type *)
 
         static member inline FromJson (_: Json) =
-            Json.Lens.get id_
+            Json.Optic.get id_
 
     (* Mapping Functions
 
@@ -766,13 +755,13 @@ module Mapping =
 
         static member inline FromJson (_: 'a array) : Json<'a array> =
                 fromJsonFold [||] (fun x xs -> Array.append [| x |] xs) >> Json.ofResult
-            =<< Json.Prism.get Json.Array_
+            =<< Json.Optic.get Json.Array_
 
         (* Lists *)
 
         static member inline FromJson (_: 'a list) : Json<'a list> =
                 fromJsonFold [] (fun x xs -> x :: xs) >> Json.ofResult
-            =<< Json.Prism.get Json.Array_
+            =<< Json.Optic.get Json.Array_
 
         (* Maps *)
 
@@ -780,20 +769,20 @@ module Mapping =
                 fun x ->
                     let k, v = (Map.toList >> List.unzip) x
                     List.zip k >> Map.ofList <!> Json.ofResult (fromJsonFold [] (fun x xs -> x :: xs) v)
-            =<< Json.Prism.get Json.Object_
+            =<< Json.Optic.get Json.Object_
 
         (* Sets *)
 
         static member inline FromJson (_: Set<'a>) : Json<Set<'a>> =
                 fromJsonFold Set.empty Set.add >> Json.ofResult
-            =<< Json.Prism.get Json.Array_
+            =<< Json.Optic.get Json.Array_
 
         (* Options *)
 
         static member inline FromJson (_: 'a option) : Json<'a option> =
                 function | Null _ -> Json.init None
                          | x -> Some <!> Json.ofResult (fromJson x)
-            =<< Json.Lens.get id_
+            =<< Json.Optic.get id_
 
         (* Tuples *)
 
@@ -804,7 +793,7 @@ module Mapping =
                             <*> Json.ofResult (fromJson b)
                          | _ ->
                             Json.error "tuple2"
-            =<< Json.Prism.get Json.Array_
+            =<< Json.Optic.get Json.Array_
 
         static member inline FromJson (_: 'a * 'b * 'c) : Json<'a * 'b * 'c> =
                 function | a :: b :: [c] ->
@@ -814,7 +803,7 @@ module Mapping =
                             <*> Json.ofResult (fromJson c)
                          | _ ->
                             Json.error "tuple3"
-            =<< Json.Prism.get Json.Array_
+            =<< Json.Optic.get Json.Array_
 
     (* To
     
@@ -827,56 +816,56 @@ module Mapping =
         (* Basic Types *)
 
         static member inline ToJson (x: bool) =
-            Json.Prism.set Json.Bool_ x
+            Json.Optic.set Json.Bool_ x
 
         static member inline ToJson (x: decimal) =
-            Json.Prism.set Json.Number_ x
+            Json.Optic.set Json.Number_ x
 
         static member inline ToJson (x: float) =
             match x with
             | x when Double.IsInfinity x -> failwith "Serialization of Infinite Numbers Invalid."
             | x when Double.IsNaN x -> failwith "Serialization of NaN Invalid."
-            | x -> Json.Prism.set Json.Number_ (decimal x)
+            | x -> Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: int) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: int16) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: int64) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: single) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: string) =
-            Json.Prism.set Json.String_ x
+            Json.Optic.set Json.String_ x
 
         static member inline ToJson (x: uint16) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: uint32) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: uint64) =
-            Json.Prism.set Json.Number_ (decimal x)
+            Json.Optic.set Json.Number_ (decimal x)
 
         (* Common Types *)
 
         static member inline ToJson (x: DateTime) =
-            Json.Prism.set Json.String_ (x.ToUniversalTime().ToString("o"))
+            Json.Optic.set Json.String_ (x.ToUniversalTime().ToString("o"))
         
         static member inline ToJson (x: DateTimeOffset) =
-            Json.Prism.set Json.String_ (x.ToString("o"))
+            Json.Optic.set Json.String_ (x.ToString("o"))
 
         static member inline ToJson (x: Guid) =
-            Json.Prism.set Json.String_ (string x)
+            Json.Optic.set Json.String_ (string x)
 
         (* Json Type *)
 
         static member inline ToJson (x: Json) =
-            Json.Lens.set id_ x
+            Json.Optic.set id_ x
 
     (* Mapping Functions
 
@@ -896,36 +885,36 @@ module Mapping =
         (* Arrays *)
 
         static member inline ToJson (x: 'a array) =
-            Json.Lens.set id_ (Array ((Array.toList >> List.map toJson) x))
+            Json.Optic.set id_ (Array ((Array.toList >> List.map toJson) x))
 
         (* Lists *)
 
         static member inline ToJson (x: 'a list) =
-            Json.Lens.set id_ (Array (List.map toJson x))
+            Json.Optic.set id_ (Array (List.map toJson x))
 
         (* Maps *)
 
         static member inline ToJson (x: Map<string,'a>) =
-            Json.Lens.set id_ (Object (Map.map (fun _ a -> toJson a) x))
+            Json.Optic.set id_ (Object (Map.map (fun _ a -> toJson a) x))
 
         (* Options *)
 
         static member inline ToJson (x: 'a option) =
-            Json.Lens.set id_ ((function | Some a -> toJson a 
-                                         | _ -> Null ()) x)
+            Json.Optic.set id_ ((function | Some a -> toJson a 
+                                          | _ -> Null ()) x)
 
         (* Sets *)
 
         static member inline ToJson (x: Set<'a>) =
-            Json.Lens.set id_ (Array ((Set.toList >> List.map toJson) x))
+            Json.Optic.set id_ (Array ((Set.toList >> List.map toJson) x))
 
         (* Tuples *)
 
         static member inline ToJson ((a, b)) =
-            Json.Lens.set id_ (Array [ toJson a; toJson b ])
+            Json.Optic.set id_ (Array [ toJson a; toJson b ])
 
         static member inline ToJson ((a, b, c)) =
-            Json.Lens.set id_ (Array [ toJson a; toJson b; toJson c ])
+            Json.Optic.set id_ (Array [ toJson a; toJson b; toJson c ])
 
     (* Functions
 
@@ -938,7 +927,7 @@ module Mapping =
 
         let readWith fromJson key =
                 fromJson >> Json.ofResult
-            =<< Json.Prism.get (Json.Object_ >? Map.key_ key)
+            =<< Json.Optic.get (Json.Object_ >? Map.key_ key)
 
         let inline read key =
             readWith fromJson key
@@ -946,7 +935,7 @@ module Mapping =
         let readWithOrDefault fromJson key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
-            =<< Json.Prism.tryGet (Json.Object_ >? Map.key_ key)
+            =<< Json.Optic.tryGet (Json.Object_ >? Map.key_ key)
 
         let inline readOrDefault key def =
             readWithOrDefault fromJson key def
@@ -954,13 +943,13 @@ module Mapping =
         let tryReadWith fromJson key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
-            =<< Json.Prism.tryGet (Json.Object_ >? Map.key_ key)
+            =<< Json.Optic.tryGet (Json.Object_ >? Map.key_ key)
 
         let inline tryRead key =
             tryReadWith fromJson key
 
         let writeWith toJson key value =
-            Json.Prism.set (Json.Object_ >? Map.value_ key) (Some (toJson value))
+            Json.Optic.set (Json.Object_ >? Map.value_ key) (Some (toJson value))
 
         let inline write key value =
             writeWith toJson key value
@@ -974,7 +963,7 @@ module Mapping =
             writeWithUnlessDefault toJson key def value
 
         let writeNone key =
-            Json.Prism.set (Json.Object_ >? Map.value_ key) (Some (Json.Null ()))
+            Json.Optic.set (Json.Object_ >? Map.value_ key) (Some (Json.Null ()))
 
         (* Serialization/Deserialization *)
 
@@ -999,9 +988,11 @@ module Mapping =
 [<AutoOpen>]
 module Patterns =
 
+    open Aether.Operators
+
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
     let inline (|Property|_|) key =
-            Prism.get (Json.Object_ >? Map.key_ key)
+            Optic.get (Json.Object_ >? Map.key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
                                                          | _ -> None)
