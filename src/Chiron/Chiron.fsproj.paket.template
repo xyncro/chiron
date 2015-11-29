@@ -3,7 +3,7 @@ id Chiron
 title Chiron
 description JSON for F#
 tags functional json f# optics
-version 6.0.0-b9
+version 6.0.0-rc1
 authors Andrew Cherry, Michael Newton, Henrik Feldt, Marcus Griep
 owners Andrew Cherry
 projectUrl https://github.com/xyncro/chiron
