@@ -927,7 +927,7 @@ module Mapping =
 
         let readWith fromJson key =
                 fromJson >> Json.ofResult
-            =<< Json.Optic.get (Json.Object_ >? Map.key_ key)
+            =<< Json.Optic.get (Json.Object_ >?> Map.key_ key)
 
         let inline read key =
             readWith fromJson key
@@ -935,7 +935,7 @@ module Mapping =
         let readWithOrDefault fromJson key def =
                 function | Some json -> Json.ofResult (fromJson json)
                          | _ -> Json.init def
-            =<< Json.Optic.tryGet (Json.Object_ >? Map.key_ key)
+            =<< Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
 
         let inline readOrDefault key def =
             readWithOrDefault fromJson key def
@@ -943,13 +943,13 @@ module Mapping =
         let tryReadWith fromJson key =
                 function | Some json -> Some <!> Json.ofResult (fromJson json)
                          | _ -> Json.init None
-            =<< Json.Optic.tryGet (Json.Object_ >? Map.key_ key)
+            =<< Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
 
         let inline tryRead key =
             tryReadWith fromJson key
 
         let writeWith toJson key value =
-            Json.Optic.set (Json.Object_ >? Map.value_ key) (Some (toJson value))
+            Json.Optic.set (Json.Object_ >?> Map.value_ key) (Some (toJson value))
 
         let inline write key value =
             writeWith toJson key value
@@ -963,7 +963,7 @@ module Mapping =
             writeWithUnlessDefault toJson key def value
 
         let writeNone key =
-            Json.Optic.set (Json.Object_ >? Map.value_ key) (Some (Json.Null ()))
+            Json.Optic.set (Json.Object_ >?> Map.value_ key) (Some (Json.Null ()))
 
         (* Serialization/Deserialization *)
 
@@ -993,6 +993,6 @@ module Patterns =
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
     let inline (|Property|_|) key =
-            Optic.get (Json.Object_ >? Map.key_ key)
+            Optic.get (Json.Object_ >?> Map.key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
                                                          | _ -> None)

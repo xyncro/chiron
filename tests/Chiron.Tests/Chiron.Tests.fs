@@ -61,8 +61,8 @@ let ``Json.map2 returns correct values`` () =
 
 let private prism_ =
         Json.Object_
-     >? Map.key_ "bool"
-     >? Json.Bool_
+    >?> Map.key_ "bool"
+    >?> Json.Bool_
 
 [<Test>]
 let ``Json.Lens.get returns correct values`` () =
