@@ -259,6 +259,75 @@ module Optics =
                 fun json ->
                     Value (), Optic.map o f json
 
+        (* Obsolete
+
+           Backwards compatibility shims to make the 5.x-> 6.x transition
+           less painful, providing functionally equivalent options where possible.
+
+           To be removed for 7.x releases. *)
+
+        [<RequireQualifiedAccess>]
+        module Lens =
+
+            [<Obsolete ("Use Json.Optic.get instead.")>]
+            let inline get l =
+                Optic.get l
+
+            [<Obsolete ("Use Json.Optic.set instead.")>]
+            let inline set l =
+                Optic.get l
+
+            [<Obsolete ("Use Json.Optic.map instead.")>]
+            let inline map l =
+                Optic.map l
+
+        [<RequireQualifiedAccess>]
+        module Prism =
+
+            [<Obsolete ("Use Json.Optic.get instead.")>]
+            let inline get l =
+                Optic.get l
+
+            [<Obsolete ("Use Json.Optic.tryGet instead.")>]
+            let inline tryGet p =
+                Optic.tryGet p
+
+            [<Obsolete ("Use Json.Optic.set instead.")>]
+            let inline set l =
+                Optic.get l
+
+            [<Obsolete ("Use Json.Optic.map instead.")>]
+            let inline map l =
+                Optic.map l
+
+        [<Obsolete ("Use Json.Optic.get instead.")>]
+        let inline getLens l =
+            Optic.get l
+
+        [<Obsolete ("Use Json.Optic.get instead.")>]
+        let inline getLensPartial l =
+            Optic.get l
+
+        [<Obsolete ("Use Json.Optic.tryGet instead.")>]
+        let inline tryGetLensPartial l =
+            Optic.tryGet l
+
+        [<Obsolete ("Use Json.Optic.set instead.")>]
+        let inline setLens l =
+            Optic.set l
+
+        [<Obsolete ("Use Json.Optic.set instead.")>]
+        let inline setLensPartial l =
+            Optic.set l
+
+        [<Obsolete ("Use Json.Optic.map instead.")>]
+        let inline mapLens l =
+            Optic.map l
+
+        [<Obsolete ("Use Json.Optic.map instead.")>]
+        let inline mapLensPartial l =
+            Optic.map l
+
 (* Escaping
 
    Functions for escaped string parsing and formatting, as a
