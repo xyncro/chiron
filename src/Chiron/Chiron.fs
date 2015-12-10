@@ -644,7 +644,7 @@ module Formatting =
 
       static member SingleLine =
         { Spacing = append " "
-          NewLine = fun _ x -> x }
+          NewLine = fun _ -> append " " }
 
       static member Pretty =
         { Spacing = append " "
