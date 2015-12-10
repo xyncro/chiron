@@ -6,3 +6,4 @@ group Test
   FsCheck
   NUnit
   Unquote
+  xunit

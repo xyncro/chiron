@@ -19,3 +19,4 @@ group Test
   nuget NUnit
   nuget NUnit.Runners
   nuget Unquote
+  nuget xunit
