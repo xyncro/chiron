@@ -706,6 +706,21 @@ module Formatting =
             |> formatJson 0 options json
             |> string
 
+    (* Error Message Formatters *)
+
+    [<RequireQualifiedAccess>]
+    module Errors =
+        let missingMember key =
+            sprintf "Error deserializing JSON object; Missing required member '%s'" key
+
+        let missingMemberWithJson formatOpt key =
+            let msg = missingMember key
+            match formatOpt with
+            | Some format ->
+                Json.formatWith format >> (+) (msg + ": ")
+            | None ->
+                fun _ -> msg
+
 (* Mapping
 
    Functional mapping between Json and native F# data structures,
@@ -994,25 +1009,30 @@ module Mapping =
 
         (* Read/Write *)
 
-        let readWith fromJson key =
-                fromJson >> Json.ofResult
-            =<< Json.Optic.get (Json.Object_ >?> Map.key_ key)
+        let readMemberWith fromJson key onMissing =
+              Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
+              >>= function | Some json -> Json.ofResult (fromJson json)
+                           | None -> onMissing ()
+
+        let missingMember key =
+            fun json ->
+                Errors.missingMemberWithJson (Some JsonFormattingOptions.SingleLine) key json
+                |> fun e -> Error e, json
+
+        let inline readWith fromJson key =
+            readMemberWith fromJson key <| fun () -> missingMember key
 
         let inline read key =
             readWith fromJson key
 
-        let readWithOrDefault fromJson key def =
-                function | Some json -> Json.ofResult (fromJson json)
-                         | _ -> Json.init def
-            =<< Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
+        let inline readWithOrDefault fromJson key def =
+            readMemberWith fromJson key <| fun () -> Json.init def
 
         let inline readOrDefault key def =
             readWithOrDefault fromJson key def
 
-        let tryReadWith fromJson key =
-                function | Some json -> Some <!> Json.ofResult (fromJson json)
-                         | _ -> Json.init None
-            =<< Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
+        let inline tryReadWith fromJson key =
+            readMemberWith fromJson key <| fun () -> Json.init None
 
         let inline tryRead key =
             tryReadWith fromJson key
