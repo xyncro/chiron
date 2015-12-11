@@ -1075,9 +1075,16 @@ module Patterns =
 
     open Aether.Operators
 
+    /// Parse a Property from a Json Object token using a supplied fromJson,
+    /// and try to deserialize it to the inferred type.
+    let inline (|PropertyWith|) fromJson key =
+            Optic.get (Json.Object_ >?> Map.key_ key)
+         >> Option.bind (fromJson >> function | Value a, _ -> Some a
+                                              | _ -> None)
+
     /// Parse a Property from a Json Object token, and try to deserialize it to the
     /// inferred type.
     let inline (|Property|_|) key =
             Optic.get (Json.Object_ >?> Map.key_ key)
-         >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 json -> Some json
+         >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 a -> Some a
                                                          | _ -> None)
