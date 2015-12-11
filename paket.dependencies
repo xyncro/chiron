@@ -1,22 +1,17 @@
 source http://nuget.org/api/v2
-
 nuget Aether 8.0.0-rc2
 nuget FParsec
 
 group Build
-
-  source http://nuget.org/api/v2
-
-  nuget Fake
+source http://nuget.org/api/v2
+nuget Fake
 
 group Test
-
-  framework: >= net45
-  source http://nuget.org/api/v2
-
-  nuget FSharp.Core 3.1.2.5 redirects: on
-  nuget FsCheck
-  nuget NUnit
-  nuget NUnit.Runners
-  nuget Unquote
-  nuget xunit
+framework: >= net45
+source http://nuget.org/api/v2
+nuget FsCheck.Xunit
+nuget FSharp.Core 3.1.2.5 redirects: on
+nuget FsCheck
+nuget Unquote
+nuget xunit
+nuget xunit.runner.console

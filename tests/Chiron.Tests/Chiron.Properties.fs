@@ -1,9 +1,11 @@
 ﻿module Chiron.Tests.Properties
 
 open Chiron
+open Xunit
 open FsCheck
-open NUnit.Framework
+open FsCheck.Xunit
 open Chiron.Operators
+open Swensen.Unquote
 
 type TestRecord =
     { StringField: string
@@ -47,7 +49,6 @@ type Overrides =
         Arb.Default.DateTime ()
         |> Arb.mapFilter (fun dt -> dt.ToUniversalTime()) (fun dt -> dt.Kind = System.DateTimeKind.Utc)
 
-[<Test>]
 let ``Chiron properties`` () =
     let config = { Config.VerboseThrowOnFailure with
                       Arbitrary = [ typeof<Overrides> ] }

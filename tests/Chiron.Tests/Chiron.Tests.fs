@@ -5,7 +5,7 @@ open Aether
 open Aether.Operators
 open Chiron
 open Chiron.Operators
-open NUnit.Framework
+open Xunit
 open Swensen.Unquote
 
 (* Cases *)
@@ -25,30 +25,30 @@ let private t2 =
    Tests to exercise the basic functional components of the Json<'a>
    type and combinators thereof. *)
 
-[<Test>]
+[<Fact>]
 let ``Json.init returns correct values`` () =
     Json.init 1 t1 =! (Value 1,  t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.error returns correct values`` () =
     Json.error "e" t1 =! (Error "e", t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.bind returns correct values`` () =
     Json.bind (Json.init 2) (fun x -> Json.init (x * 3)) t1 =! (Value 6, t1)
     Json.bind (Json.error "e") (fun x -> Json.init (x * 3)) t1 =! (Error "e", t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.apply returns correct values`` () =
     Json.apply (Json.init (fun x -> x * 3)) (Json.init 2) t1 =! (Value 6, t1)
     Json.apply (Json.init (fun x -> x * 3)) (Json.error "e") t1 =! (Error "e", t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.map returns correct values`` () =
     Json.map (fun x -> x * 3) (Json.init 2) t1 =! (Value 6, t1)
     Json.map (fun x -> x * 3) (Json.error "e") t1 =! (Error "e", t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.map2 returns correct values`` () =
     Json.map2 (*) (Json.init 2) (Json.init 3) t1 =! (Value 6, t1)
     Json.map2 (*) (Json.error "e") (Json.init 3) t1 =! (Error "e", t1)
@@ -64,37 +64,37 @@ let private prism_ =
     >?> Map.key_ "bool"
     >?> Json.Bool_
 
-[<Test>]
+[<Fact>]
 let ``Json.Lens.get returns correct values`` () =
     Json.Optic.get id_ t1 =! (Value t1, t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.Optic.get with Lens returns correct values`` () =
     Json.Optic.get prism_ t1 =! (Value true, t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.Optic.tryGet with Prism returns correct values`` () =
     Json.Optic.tryGet Json.Number_ t1 =! (Value None, t1)
 
-[<Test>]
+[<Fact>]
 let ``Json.Optic.set with Lens returns correct values`` () =
     Json.Optic.set id_ (Bool false) t1 =! (Value (), Bool false)
 
-[<Test>]
+[<Fact>]
 let ``Json.Optic.set with Prism returns correct values`` () =
     Json.Optic.set prism_ false t1 =! (Value (), t2)
 
-[<Test>]
+[<Fact>]
 let ``Json.Optic.map with Lens returns correct values`` () =
     Json.Optic.map id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
 
-[<Test>]
+[<Fact>]
 let ``Json.Optic.map with Prism returns correct values`` () =
     Json.Optic.map prism_ not t1 =! (Value (), t2)
 
 (* Parsing *)
 
-[<Test>]
+[<Fact>]
 let ``Json.parse returns correct values`` () =
     Json.parse "\"hello\"" =! String "hello"
     Json.parse "\"\"" =! String ""
@@ -104,7 +104,7 @@ let ``Json.parse returns correct values`` () =
 
 (* Formatting *)
 
-[<Test>]
+[<Fact>]
 let ``Json.format returns correct values`` () =
     (* String *)
     Json.format <| String "hello" =! "\"hello\""
@@ -125,7 +125,7 @@ let ``Json.format returns correct values`` () =
    Tests exercising mapping functions between Json and other F#
    data structures. *)
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize simple types returns correct values`` () =
 
     (* Boolean *)
@@ -156,7 +156,7 @@ let ``Json.deserialize simple types returns correct values`` () =
 
     Json.deserialize (String "2015-04-15T13:45:55Z") =! DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero)
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize complex types returns correct values`` () =
 
     (* Arrays *)
@@ -228,7 +228,7 @@ let testInstance =
       Values = [ true; false ]
       Json = Object (Map [ "hello", String "world" ]) }
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize with custom typed returns correct values`` () =
     Json.deserialize testJson =! testInstance
 
@@ -245,7 +245,7 @@ let testInstanceWithNoneOption =
       Values = [ ]
       Json = Object (Map [ "hello", String "world" ]) }
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize with null option value`` () =
     Json.deserialize testJsonWithNullOption =! testInstanceWithNoneOption
 
@@ -255,11 +255,11 @@ let testJsonWithMissingOption =
           "values", Array []
           "json", Object (Map [ "hello", String "world" ]) ])
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize with missing value`` () =
     Json.deserialize testJsonWithMissingOption =! testInstanceWithNoneOption
 
-[<Test>]
+[<Fact>]
 let ``Json.serialize with default value`` () =
     Json.serialize testInstanceWithNoneOption =! testJsonWithMissingOption
 
@@ -269,17 +269,17 @@ let testJsonWithNoValues =
           "number", Number 42M
           "json", Object (Map [ "hello", String "world" ]) ])
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize with invalid value includes missing member name in quotes`` () =
     let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
     test <@ match result with Choice2Of2 e -> e.Contains("'values'") @>
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize with invalid value includes JSON formatted object`` () =
     let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
     test <@ match result with Choice2Of2 e -> e.EndsWith(Json.formatWith JsonFormattingOptions.SingleLine testJsonWithNoValues) @>
 
-[<Test>]
+[<Fact>]
 let ``Json.serialize with simple types returns correct values`` () =
 
     (* Bool *)
@@ -310,7 +310,7 @@ let ``Json.serialize with simple types returns correct values`` () =
 
     Json.serialize "hello" =! String "hello"
 
-[<Test>]
+[<Fact>]
 let ``Json.serialize with custom types returns correct values`` () =
     Json.serialize testInstance =! testJson
 
@@ -336,15 +336,15 @@ let testUnionJson =
     Object (Map.ofList
         [ "two", Array [ Number 42M; Bool true ] ])
 
-[<Test>]
+[<Fact>]
 let ``Json.serialize with union types remains tractable`` () =
     Json.serialize testUnion =! testUnionJson
 
-[<Test>]
+[<Fact>]
 let ``Json.deserialize with union types remains tractable`` () =
     Json.deserialize testUnionJson =! testUnion
 
-[<Test>]
+[<Fact>]
 let ``Json.format escapes object keys correctly`` () =
     let data = Map [ "\u001f", "abc" ]
     let serialized = Json.serialize data
@@ -378,10 +378,10 @@ type MyDayOfWeekObject =
 let deserializedMonday = { Bool = true; Day = DayOfWeek.Monday }
 let serializedMonday = Object (Map.ofList ["bool", Bool true; "day_of_week", String "Monday"])
 
-[<Test>]
+[<Fact>]
 let ``Json.readWith allows using a custom deserialization function`` () =
     Json.deserialize serializedMonday =! deserializedMonday
 
-[<Test>]
+[<Fact>]
 let ``Json.writeWith allows using a custom serialization function`` () =
     Json.serialize deserializedMonday =! serializedMonday
