@@ -710,6 +710,7 @@ module Formatting =
 
     [<RequireQualifiedAccess>]
     module Errors =
+
         let missingMember key =
             sprintf "Error deserializing JSON object; Missing required member '%s'" key
 
@@ -917,7 +918,10 @@ module Mapping =
             Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: single) =
-            Json.Optic.set Json.Number_ (decimal x)
+            match x with
+            | x when Single.IsInfinity x -> failwith "Serialization of Infinite Numbers Invalid."
+            | x when Single.IsNaN x -> failwith "Serialization of NaN Invalid."
+            | x -> Json.Optic.set Json.Number_ (decimal x)
 
         static member inline ToJson (x: string) =
             Json.Optic.set Json.String_ x
