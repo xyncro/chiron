@@ -263,6 +263,22 @@ let ``Json.deserialize with missing value`` () =
 let ``Json.serialize with default value`` () =
     Json.serialize testInstanceWithNoneOption =! testJsonWithMissingOption
 
+let testJsonWithNoValues =
+    Object (Map.ofList
+        [ "string", String "hello"
+          "number", Number 42M
+          "json", Object (Map [ "hello", String "world" ]) ])
+
+[<Test>]
+let ``Json.deserialize with invalid value includes missing member name in quotes`` () =
+    let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
+    test <@ match result with Choice2Of2 e -> e.Contains("'values'") @>
+
+[<Test>]
+let ``Json.deserialize with invalid value includes JSON formatted object`` () =
+    let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
+    test <@ match result with Choice2Of2 e -> e.EndsWith(Json.formatWith JsonFormattingOptions.SingleLine testJsonWithNoValues) @>
+
 [<Test>]
 let ``Json.serialize with simple types returns correct values`` () =
 
