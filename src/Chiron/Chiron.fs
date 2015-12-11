@@ -713,13 +713,9 @@ module Formatting =
         let missingMember key =
             sprintf "Error deserializing JSON object; Missing required member '%s'" key
 
-        let missingMemberWithJson formatOpt key =
-            let msg = missingMember key
-            match formatOpt with
-            | Some format ->
-                Json.formatWith format >> (+) (msg + ": ")
-            | None ->
-                fun _ -> msg
+        let missingMemberWithJson key =
+            function | Some format -> Json.formatWith format >> (+) (missingMember key + ": ")
+                     | None -> fun _ -> missingMember key
 
 (* Mapping
 
@@ -1009,15 +1005,15 @@ module Mapping =
 
         (* Read/Write *)
 
-        let readMemberWith fromJson key onMissing =
-              Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
-              >>= function | Some json -> Json.ofResult (fromJson json)
-                           | None -> onMissing ()
-
         let missingMember key =
             fun json ->
-                Errors.missingMemberWithJson (Some JsonFormattingOptions.SingleLine) key json
+                Errors.missingMemberWithJson key (Some JsonFormattingOptions.SingleLine) json
                 |> fun e -> Error e, json
+
+        let readMemberWith fromJson key onMissing =
+                Json.Optic.tryGet (Json.Object_ >?> Map.key_ key)
+            >>= function | Some json -> Json.ofResult (fromJson json)
+                         | None -> onMissing ()
 
         let inline readWith fromJson key =
             readMemberWith fromJson key <| fun () -> missingMember key
