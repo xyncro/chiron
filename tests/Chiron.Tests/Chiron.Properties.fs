@@ -40,11 +40,19 @@ type NormalSingle = NormalSingle of single with
     member x.Get = match x with NormalSingle v -> x
     override x.ToString () = x.Get.ToString()
 
+type UtcDateTime = UtcDateTime of System.DateTime with
+    member x.Get = match x with UtcDateTime v -> x
+    override x.ToString () = x.Get.ToString()
+
 type Arbitrary = Arbitrary with
     static member NormalSingle () : Arbitrary<NormalSingle> =
         Arb.from<single>
         |> Arb.filter (fun f -> not (System.Single.IsNaN f || System.Single.IsInfinity f))
         |> Arb.convert NormalSingle (fun (NormalSingle v) -> v)
+
+    static member UtcDateTime () : Arbitrary<UtcDateTime> =
+        Arb.from<System.DateTime>
+        |> Arb.convert (fun dt -> dt.ToUniversalTime() |> UtcDateTime) (fun (UtcDateTime dt) -> dt)
 
     static member Json () : Arbitrary<Json> =
         let genNull = Null () |> Gen.constant
@@ -173,8 +181,13 @@ module Primitives =
 //        doRoundTripTest v
 
     [<Property>]
-    let ``DateTime can be round-tripped`` (v : System.DateTime) =
+    let ``UTC DateTime can be round-tripped`` (UtcDateTime v) =
         doRoundTripTest v
+
+    [<Property>]
+    let ``Deserialized DateTimes are UTC`` (v : System.DateTime) =
+        let serialize, deserialize = Json.serialize, Json.deserialize
+        test <@ (v |> serialize |> Json.format |> Json.parse |> deserialize : System.DateTime).Kind = System.DateTimeKind.Utc @>
 
     [<Property>]
     let ``DateTimeOffset can be round-tripped`` (v : System.DateTimeOffset) =
