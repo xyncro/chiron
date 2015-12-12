@@ -272,12 +272,12 @@ let testJsonWithNoValues =
 [<Fact>]
 let ``Json.deserialize with invalid value includes missing member name in quotes`` () =
     let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
-    test <@ match result with Choice2Of2 e -> e.Contains("'values'") @>
+    test <@ match result with Choice2Of2 e -> e.Contains("'values'") | _ -> false @>
 
 [<Fact>]
 let ``Json.deserialize with invalid value includes JSON formatted object`` () =
     let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
-    test <@ match result with Choice2Of2 e -> e.EndsWith(Json.formatWith JsonFormattingOptions.SingleLine testJsonWithNoValues) @>
+    test <@ match result with Choice2Of2 e -> e.EndsWith(Json.formatWith JsonFormattingOptions.SingleLine testJsonWithNoValues) | _ -> false @>
 
 [<Fact>]
 let ``Json.serialize with simple types returns correct values`` () =

@@ -23,17 +23,10 @@ type TestRecord =
          *> Json.write "guidField" g
          *> Json.write "dateTimeField" d
 
-let inline roundTrip (thing : 'a) : 'a =
-    Json.serialize thing
-    |> Json.format
-    |> Json.parse
-    |> Json.deserialize
-
 let inline doRoundTripTest v =
     let serialize,deserialize = Json.serialize, Json.deserialize
     test <@ v |> serialize |> Json.format |> Json.parse |> deserialize = v @>
 
-let always x = fun _ -> x
 let pair a b = a,b
 
 type NormalSingle = NormalSingle of single with
@@ -196,29 +189,3 @@ module Primitives =
     [<Property>]
     let ``Json can be round-tripped`` (v : Json) =
         doRoundTripTest v
-
-
-type ChironProperties =
-    static member ``Strings can be roundtripped`` (str : string) =
-        let sut = roundTrip str
-        sut = str |@ sprintf "(%A should equal %A)" sut str
-    static member ``Date times can be roundtripped`` (dt : System.DateTime) =
-        let sut = roundTrip dt
-        sut = dt |@ sprintf "(%A should equal %A)" sut dt
-    static member ``Records can be roundtripped`` (tr : TestRecord) =
-        let sut = roundTrip tr
-        sut = tr |@ sprintf "(%A should equal %A)" sut tr
-
-type Overrides =
-    static member SafeString () =
-        Arb.Default.String()
-        |> Arb.filter (fun s -> s <> null)
-
-    static member DateTime () =
-        Arb.Default.DateTime ()
-        |> Arb.mapFilter (fun dt -> dt.ToUniversalTime()) (fun dt -> dt.Kind = System.DateTimeKind.Utc)
-
-let ``Chiron properties`` () =
-    let config = { Config.VerboseThrowOnFailure with
-                      Arbitrary = [ typeof<Overrides> ] }
-    Check.All<ChironProperties> config
