@@ -789,7 +789,7 @@ module Mapping =
 
         static member inline FromJson (_: DateTimeOffset) =
                 fun x ->
-                    match DateTimeOffset.TryParseExact (x, [|"yyyy-MM-dd'T'HH:mm:ss.FFFK" |], null, DateTimeStyles.None) with
+                    match DateTimeOffset.TryParseExact (x, [| "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'"; "o"; "r" |], null, DateTimeStyles.AssumeUniversal) with
                     | true, x -> Json.init x
                     | _ -> Json.error "datetimeoffset"
             =<< Json.Optic.get Json.String_
