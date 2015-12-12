@@ -84,7 +84,7 @@ module SelfTest =
             | _ -> true
         raises
             <@ Check.One
-              ( { Config.VerboseThrowOnFailure with MaxTest=1000; Arbitrary=typeof<Arbitrary> :: Config.Default.Arbitrary },
+              ( { Config.QuickThrowOnFailure with MaxTest=1000; Arbitrary=typeof<Arbitrary> :: Config.Default.Arbitrary },
                 ``Is not an object with a member array containing a fourth item which is a String``) @>
 
     [<Property(Arbitrary=[|typeof<Arbitrary>|])>]
