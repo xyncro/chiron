@@ -97,7 +97,7 @@ type Arbitrary = Arbitrary with
             | Array a -> ifFullyShrunkThen a numberOrString Array
             | Object o -> ifFullyShrunkThen o numberOrString Object
 
-        let getDepthLimit = float >> (fun f -> System.Math.Log (f,2.)) >> int
+        let getDepthLimit = float >> (fun f -> System.Math.Log (f,3.)) >> int
 
         let gen = Gen.sized <| fun size -> let depthLimit = getDepthLimit size in generateSized (depthLimit + 1) 0 (sqrtSize size)
 
