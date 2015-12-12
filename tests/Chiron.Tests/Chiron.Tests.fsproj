@@ -57,6 +57,7 @@
   -->
   <ItemGroup>
     <Compile Include="Chiron.Tests.fs" />
+    <Compile Include="Chiron.Testing.fs" />
     <Compile Include="Chiron.Properties.fs" />
     <Content Include="App.config" />
   </ItemGroup>
