@@ -116,7 +116,7 @@ let rec ``Arbitrary Json doesn't have null strings`` (v : Json) =
     | _ -> true
 
 [<Arbitrary(typeof<Arbitrary>)>]
-module Primitives =
+module MappingDefaults =
     [<Property>]
     let ``Non-null strings can be round-tripped`` (NonNull str) =
         doRoundTripTest str
