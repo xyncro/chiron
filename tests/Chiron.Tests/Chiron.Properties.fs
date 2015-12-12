@@ -9,22 +9,6 @@ open Chiron
 open Chiron.Operators
 open Chiron.Testing
 
-type TestRecord =
-    { StringField: string
-      GuidField: System.Guid
-      DateTimeField: System.DateTime }
-
-    static member FromJson (_ : TestRecord) =
-            fun s g d -> { StringField = s; GuidField = g; DateTimeField = d }
-        <!> Json.read "stringField"
-        <*> Json.read "guidField"
-        <*> Json.read "dateTimeField"
-
-    static member ToJson { StringField = s; GuidField = g; DateTimeField = d } =
-            Json.write "stringField" s
-         *> Json.write "guidField" g
-         *> Json.write "dateTimeField" d
-
 let inline doRoundTripTest v =
     let serialize,deserialize = Json.serialize, Json.deserialize
     test <@ v |> serialize |> Json.format |> Json.parse |> deserialize = v @>
@@ -101,3 +85,27 @@ let ``DateTimeOffset can be round-tripped`` (v : System.DateTimeOffset) =
 [<Property>]
 let ``Json can be round-tripped`` (v : Json) =
     doRoundTripTest v
+
+type TestRecord =
+    { StringField: string
+      GuidField: System.Guid option
+      DateTimeField: System.DateTimeOffset option
+      CharArrayField: System.Char[] }
+
+    static member FromJson (_ : TestRecord) =
+            fun s g d c -> { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c }
+        <!> Json.read "stringField"
+        <*> Json.readOrDefault "guidField" None
+        <*> Json.tryRead "dateTimeField"
+        <*> Json.readWith (function | String s -> s.ToCharArray() |> Value | _ -> Error "Sadness") "charArrayField"
+
+    static member ToJson { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c } =
+            Json.write "stringField" s
+         *> Json.writeUnlessDefault "guidField" None g
+         *> Json.write "dateTimeField" d
+         *> (c |>Json.writeWith (System.String >> String) "charArrayField")
+
+[<Property>]
+let ``TestRecord can be round-tripped`` (v : TestRecord) =
+    (v.StringField <> null) ==> lazy
+        doRoundTripTest v
