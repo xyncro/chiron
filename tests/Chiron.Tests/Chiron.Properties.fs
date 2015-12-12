@@ -37,11 +37,11 @@ let always x = fun _ -> x
 let pair a b = a,b
 
 type NormalSingle = NormalSingle of single with
-    member x.Get = match x with NormalSingle v -> x
+    member x.Get = match x with NormalSingle v -> v
     override x.ToString () = x.Get.ToString()
 
 type UtcDateTime = UtcDateTime of System.DateTime with
-    member x.Get = match x with UtcDateTime v -> x
+    member x.Get = match x with UtcDateTime v -> v
     override x.ToString () = x.Get.ToString()
 
 type Arbitrary = Arbitrary with
