@@ -33,7 +33,7 @@ Target "Test" <| fun _ ->
     !! "tests/**/bin/Release/*.Tests.dll"
     |> xUnit2 (fun p ->
         { p with
-            HtmlOutputPath = Some "bin/Chiron.Tests.html"
+            HtmlOutputPath = None
             Parallel = All })
 
 // Package
