@@ -1,6 +1,22 @@
-Chiron
-======
+# Chiron
 
-Functional JSON for F#. This is a fairly early work in progress, but usable enough to get feedback. It provides a core functional JSON AST, a set of Aether lenses over the AST, a basic monad over a JSON type, a parser, a serializer and a mapping system based on the excellent work that Mauricio Scheffer has done with Fleece.
+[![Chat](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/xyncro/chiron?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build](https://ci.appveyor.com/api/projects/status/voea02199sirhmp6?svg=true)](https://ci.appveyor.com/project/kolektiv/chiron)
 
-It's a fairly semver 1.0, but it will probably change in some small ways - bug reports etc. gratefully received.
+## What is Chiron?
+
+[Chiron][chiron] is an JSON for F#, similar to the Haskell Aeson package. See the dedicated [Chiron Site][chiron] for more information.
+
+## Installation
+
+Chiron can be installed from [NuGet](https://www.nuget.org/packages/chiron "Chiron on NuGet"). Using the Package Manager Console:
+
+```batch
+PM> Install-Package Chiron
+```
+
+## License
+
+Chiron is under the MIT license.
+
+[chiron]: https://xyncro.tech/chiron
