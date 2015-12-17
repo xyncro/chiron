@@ -1,6 +1,6 @@
 source http://nuget.org/api/v2
 
-nuget Aether ~> 8
+nuget Aether >= 8.0.1 < 9.0.0
 nuget FParsec ~> 1
 
 group Build
@@ -15,7 +15,6 @@ group Test
   source http://nuget.org/api/v2
 
   nuget FsCheck.Xunit
-  nuget FSharp.Core 3.1.2.5 redirects: on
   nuget FsCheck
   nuget Unquote
   nuget xunit

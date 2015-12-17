@@ -394,11 +394,11 @@ module internal Escaping =
                             | '\n' -> [ '\\'; 'n' ]
                             | '\r' -> [ '\\'; 'r' ]
                             | '\t' -> [ '\\'; 't' ]
-                            | x ->    [ '\\'; 'u' ] @ [ for c in ((int x).ToString ("X4")) -> c ]
+                            | x ->    [ '\\'; 'u' ] @ [ for c in (((int x).ToString ("X4")).ToCharArray ()) -> c ]
 
                         escape (r @ n) t
 
-        new string (List.toArray (escape [] [ for c in s -> c ]))
+        new string (List.toArray (escape [] [ for c in (s.ToCharArray ()) -> c ]))
 
 (* Parsing
 

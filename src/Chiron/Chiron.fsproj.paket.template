@@ -1,12 +1,31 @@
 ﻿type project
-id Chiron
-title Chiron
-description JSON for F#
-tags functional json f# optics
-version 6.0.0
-authors Andrew Cherry, Michael Newton, Henrik Feldt, Marcus Griep
-owners Andrew Cherry
-projectUrl https://xyncro.tech/chiron
-licenseUrl https://github.com/xyncro/chiron/blob/master/LICENSE.md
-requireLicenseAcceptance false
-copyright Copyright Xyncro Ltd 2015
+id
+    Chiron
+title
+    Chiron
+description
+    JSON for F#
+tags
+    functional, json, f#, optics
+version
+    6.0.1
+owners
+    Andrew Cherry
+authors
+    Andrew Cherry, Michael Newton, Henrik Feldt, Marcus Griep
+copyright
+    Copyright Xyncro Ltd 2015
+projectUrl
+    https://xyncro.tech/chiron
+licenseUrl
+    https://github.com/xyncro/chiron/blob/master/LICENSE.md
+requireLicenseAcceptance
+    false
+files
+    !./bin/*.*
+    ../../targets/Chiron.Net40/bin/Chiron.dll ==> lib/net40
+    ../../targets/Chiron.Net40/bin/Chiron.xml ==> lib/net40
+    ../../targets/Chiron.Net40/bin/Chiron.pdb ==> lib/net40
+    ../../targets/Chiron.Profile259/bin/Chiron.dll ==> lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1
+    ../../targets/Chiron.Profile259/bin/Chiron.xml ==> lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1
+    ../../targets/Chiron.Profile259/bin/Chiron.pdb ==> lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1

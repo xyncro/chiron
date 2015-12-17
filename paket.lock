@@ -1,7 +1,7 @@
 NUGET
   remote: http://nuget.org/api/v2
   specs:
-    Aether (8.0.0)
+    Aether (8.0.1)
     FParsec (1.0.2)
 
 GROUP Build
