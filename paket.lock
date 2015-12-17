@@ -1,14 +1,14 @@
 NUGET
   remote: http://nuget.org/api/v2
   specs:
-    Aether (8.0.1)
+    Aether (8.0.2)
     FParsec (1.0.2)
 
 GROUP Build
 NUGET
   remote: http://nuget.org/api/v2
   specs:
-    FAKE (4.10.3)
+    FAKE (4.10.5)
 
 GROUP Test
 FRAMEWORK: >= NET45
@@ -20,7 +20,7 @@ NUGET
     FsCheck.Xunit (2.2.3)
       FsCheck (>= 2.2.3)
       xunit.extensibility.execution (>= 2.1.0 < 2.2.0)
-    FSharp.Core (3.1.2.5) - redirects: on
+    FSharp.Core (4.0.0.1)
     Unquote (3.1.0)
     xunit (2.1.0)
       xunit.assert (2.1.0)
