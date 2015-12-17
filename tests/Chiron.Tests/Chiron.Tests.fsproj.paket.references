@@ -1,7 +1,8 @@
 Aether
+
 group Test
-FSharp.Core
-FsCheck
-Unquote
-xunit
-FsCheck.Xunit
+
+  FsCheck
+  FsCheck.Xunit
+  Unquote
+  xunit
