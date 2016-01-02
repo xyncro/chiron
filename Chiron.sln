@@ -27,10 +27,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7BA60919
 		tests\Chiron.Tests\Chiron.Tests.fsproj.paket.references = tests\Chiron.Tests\Chiron.Tests.fsproj.paket.references
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fake", "fake", "{21B241CF-5EC0-40D9-80E3-3F6016F9B31F}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{21B241CF-5EC0-40D9-80E3-3F6016F9B31F}"
 	ProjectSection(SolutionItems) = preProject
 		build.cmd = build.cmd
-		build.fsx = build.fsx
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{E3D6C8D9-C156-414B-A293-97147CB020BC}"
