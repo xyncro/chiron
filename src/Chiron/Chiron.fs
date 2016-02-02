@@ -886,6 +886,29 @@ module Mapping =
                             Json.error "tuple3"
             =<< Json.Optic.get Json.Array_
 
+        static member inline FromJson (_: 'a * 'b * 'c * 'd) : Json<'a * 'b * 'c * 'd> =
+                function | a :: b :: c :: [d] ->
+                                fun a b c d -> a, b, c, d
+                            <!> Json.ofResult (fromJson a)
+                            <*> Json.ofResult (fromJson b)
+                            <*> Json.ofResult (fromJson c)
+                            <*> Json.ofResult (fromJson d)
+                         | _ ->
+                            Json.error "tuple4"
+            =<< Json.Optic.get Json.Array_
+
+        static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e) : Json<'a * 'b * 'c * 'd * 'e> =
+                function | a :: b :: c :: d :: [e] ->
+                                fun a b c d e -> a, b, c, d, e
+                            <!> Json.ofResult (fromJson a)
+                            <*> Json.ofResult (fromJson b)
+                            <*> Json.ofResult (fromJson c)
+                            <*> Json.ofResult (fromJson d)
+                            <*> Json.ofResult (fromJson e)
+                         | _ ->
+                            Json.error "tuple5"
+            =<< Json.Optic.get Json.Array_
+
     (* To
     
         *)
@@ -999,6 +1022,12 @@ module Mapping =
 
         static member inline ToJson ((a, b, c)) =
             Json.Optic.set id_ (Array [ toJson a; toJson b; toJson c ])
+
+        static member inline ToJson ((a, b, c, d)) =
+            Json.Optic.set id_ (Array [ toJson a; toJson b; toJson c; toJson d ])
+
+        static member inline ToJson ((a, b, c, d, e)) =
+            Json.Optic.set id_ (Array [ toJson a; toJson b; toJson c; toJson d; toJson e ])
 
     (* Functions
 

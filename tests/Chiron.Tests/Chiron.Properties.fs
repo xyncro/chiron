@@ -109,3 +109,36 @@ type TestRecord =
 let ``TestRecord can be round-tripped`` (v : TestRecord) =
     (v.StringField <> null) ==> lazy
         doRoundTripTest v
+
+type TestUnion =
+    | CaseWithTwoArgs of string * int
+    | CaseWithThreeArgs of string * int * bool
+    | CaseWithFourArgs of string * int * bool * System.Guid
+    | CaseWithFiveArgs of string * int * bool * System.Guid * System.DateTimeOffset
+
+    member this.StringField =
+        match this with
+        | CaseWithTwoArgs (s, _) -> s
+        | CaseWithThreeArgs (s, _, _) -> s
+        | CaseWithFourArgs (s, _, _, _) -> s
+        | CaseWithFiveArgs (s, _, _, _, _) -> s
+
+    static member ToJson (x: TestUnion) =
+        match x with
+        | CaseWithTwoArgs (a1, a2) -> Json.write "CaseWithTwoArgs" (a1, a2)
+        | CaseWithThreeArgs (a1, a2, a3) -> Json.write "CaseWithThreeArgs" (a1, a2, a3)
+        | CaseWithFourArgs (a1, a2, a3, a4) -> Json.write "CaseWithFourArgs" (a1, a2, a3, a4)
+        | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> Json.write "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
+
+    static member FromJson (_ : TestUnion) =
+        function
+        | Property "CaseWithTwoArgs" (a1, a2) as json -> Json.init (CaseWithTwoArgs (a1, a2)) json
+        | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> Json.init (CaseWithThreeArgs (a1, a2, a3)) json
+        | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> Json.init (CaseWithFourArgs (a1, a2, a3, a4)) json
+        | Property "CaseWithFiveArgs" (a1, a2, a3, a4, a5) as json -> Json.init (CaseWithFiveArgs (a1, a2, a3, a4, a5)) json
+        | json -> Json.error (sprintf "couldn't deserialise %A" json) json
+
+[<Property>]
+let ``TestUnion can be round-tripped`` (v : TestUnion) =
+    (v.StringField <> null) ==> lazy
+        doRoundTripTest v

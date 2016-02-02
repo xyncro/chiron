@@ -192,6 +192,12 @@ let ``Json.deserialize complex types returns correct values`` () =
     Json.deserialize (Array [ String "hello"; Number 42M ])
         =! ("hello", 42)
 
+    Json.deserialize (Array [ String "hello"; Number 42M; Bool true ])
+        =! ("hello", 42, true)
+
+    Json.deserialize (Array [ String "hello"; Number 42M; Bool true; Number 12M ])
+        =! ("hello", 42, true, 12)
+
 type Test =
     { String: string
       Number : int option
