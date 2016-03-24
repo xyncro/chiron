@@ -317,6 +317,37 @@ let ``Json.serialize with simple types returns correct values`` () =
     Json.serialize "hello" =! String "hello"
 
 [<Fact>]
+let ``Json.serializeWith with simple types returns correct values`` () =
+
+    (* Bool *)
+
+    Json.serializeWith ((fun x -> x.ToString()) >> Json.Optic.set Json.String_) true =! String "True"
+
+    (* Numeric *)
+
+    Json.serializeWith ((fun x -> x / 2M) >> Json.Optic.set Json.Number_) (decimal 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (float 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (int 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (int16 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (int64 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (single 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (uint16 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (uint32 42) =! Number 21M
+    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (uint64 42) =! Number 21M
+
+    (* DateTime *)
+
+    Json.serializeWith (fun (x:DateTime) -> Json.Optic.set Json.String_ (x.ToString("yyyy-MM-dd"))) (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)) =! String "2015-02-20"
+
+    (* DateTimeOffset *)
+
+    Json.serializeWith (fun (x:DateTimeOffset) -> Json.Optic.set Json.String_ (x.ToString("yyyy-MM-dd"))) (DateTimeOffset (2015, 2, 20, 14, 36, 21, TimeSpan.Zero)) =! String "2015-02-20"
+
+    (* String *)
+
+    Json.serializeWith (fun (x:string) -> Json.Optic.set Json.String_ (string x.[3..])) "hello" =! String "lo"
+
+[<Fact>]
 let ``Json.serialize with custom types returns correct values`` () =
     Json.serialize testInstance =! testJson
 

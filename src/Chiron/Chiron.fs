@@ -985,6 +985,9 @@ module Mapping =
     let inline internal toJson (x: 'a) =
         snd (toJsonDefaults (x, ToJsonDefaults) (Object (Map.empty)))
 
+    let inline internal toJsonWith (f:'a -> unit Json) (x: 'a) = 
+        snd (f x (Object (Map.empty))) 
+
     (* Defaults *)
 
     type ToJsonDefaults with
@@ -1097,6 +1100,9 @@ module Mapping =
 
         let inline serialize a =
             toJson a
+
+        let inline serializeWith f a = 
+            toJsonWith f a
 
 (* Patterns
 
