@@ -102,6 +102,10 @@ let ``Json.parse returns correct values`` () =
     Json.parse "\"\\u005c\"" =! String "\\"
     Json.parse "\"푟\"" =! String "푟"
 
+[<Fact>]
+let ``Json.tryParse doesn't throw exceptions``() =
+    Json.tryParse null =! Choice2Of2("Input is null or whitespace")
+
 (* Formatting *)
 
 [<Fact>]

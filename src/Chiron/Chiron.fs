@@ -580,9 +580,12 @@ module Parsing =
     module Json =
 
         let internal parseJson s =
-            match run jsonP s with
-            | Success (json, _, _) -> Value json
-            | Failure (e, _, _) -> Error e
+            if String.IsNullOrWhiteSpace s then
+                Error "Input is null or whitespace"
+            else
+                match run jsonP s with
+                | Success (json, _, _) -> Value json
+                | Failure (e, _, _) -> Error e
 
         let tryParse =
                parseJson
