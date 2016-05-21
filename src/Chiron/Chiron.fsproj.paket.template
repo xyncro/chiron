@@ -8,11 +8,11 @@ description
 tags
     functional, json, f#, optics
 version
-    6.1.0
+    6.2.0
 owners
     Andrew Cherry
 authors
-    Andrew Cherry, Michael Newton, Henrik Feldt, Marcus Griep
+    Andrew Cherry, Michael Newton, Henrik Feldt, Marcus Griep, Tony Williams
 copyright
     Copyright Xyncro Ltd 2015
 projectUrl
