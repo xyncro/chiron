@@ -20,6 +20,8 @@ NUGET
       FsCheck (>= 2.2.4)
       xunit.extensibility.execution (>= 2.1 < 2.2)
     FSharp.Core (4.0.0.1)
+    NBench (0.3)
+    NBench.Runner (0.3)
     Unquote (3.1)
     xunit (2.1)
       xunit.assert (2.1)

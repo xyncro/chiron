@@ -17,6 +17,8 @@ group Test
 
   nuget FsCheck.Xunit
   nuget FsCheck
+  nuget NBench
+  nuget NBench.Runner
   nuget Unquote
   nuget xunit
   nuget xunit.runner.console
