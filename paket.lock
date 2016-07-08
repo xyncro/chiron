@@ -10,6 +10,11 @@ NUGET
 GITHUB
   remote: xyncro/build
     build.fsx (1ef06d448999e0c0a04b8a35948a5afccfdbfbec)
+GROUP Schema
+
+HTTP
+  remote: http://json-schema.org
+    json-schema.json (/schema)
 GROUP Test
 FRAMEWORK: >= NET45
 NUGET

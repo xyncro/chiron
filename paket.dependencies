@@ -22,3 +22,7 @@ group Test
   nuget Unquote
   nuget xunit
   nuget xunit.runner.console
+
+group Schema
+
+  http http://json-schema.org/schema json-schema.json
