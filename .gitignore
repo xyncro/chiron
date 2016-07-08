@@ -183,3 +183,6 @@ FakesAssemblies/
 
 # FSharp Lint
 *.FSharpLint
+
+# NBench Reports
+reports/
