@@ -467,7 +467,7 @@ module Parsing =
        reference parser which will be assigned later, allowing for recursive
        definition of parsing rules. *)
 
-    let private jsonP, jsonR =
+    let jsonP, jsonR =
         createParserForwardedToRef ()
 
     (* Values
