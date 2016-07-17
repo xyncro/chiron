@@ -368,6 +368,49 @@ type Parse() =
         Json.tryParse jsonSchemaStr |> ignore
         incr counter
 
+type ParseBytes() =
+    let mutable counter : Counter = Unchecked.defaultof<_>
+
+    [<PerfSetup>]
+    member __.Setup (ctx : BenchmarkContext) : unit =
+        counter <- getCounter ctx "TestCounter"
+
+    [<PerfBenchmark(
+        Description = "Parse",
+        NumberOfIterations = 10,
+        RunMode = RunMode.Throughput,
+        RunTimeMilliseconds = 1000,
+        TestMode = TestMode.Measurement)>]
+    [<CounterMeasurement("TestCounter")>]
+    [<MemoryMeasurement(MemoryMetric.TotalBytesAllocated)>]
+    [<GcTotalAssertion(GcMetric.TotalCollections, GcGeneration.Gen2, MustBe.ExactlyEqualTo, 0.)>]
+    member __.Benchmark (ctx : BenchmarkContext) : unit =
+        use ms = new System.IO.MemoryStream(jsonSchemaBytes)
+        FParsec.CharParsers.runParserOnStream Chiron.Parsing.jsonP () "" ms System.Text.Encoding.UTF8 |> ignore
+        incr counter
+
+type ParseAfterDecode() =
+    let mutable counter : Counter = Unchecked.defaultof<_>
+
+    [<PerfSetup>]
+    member __.Setup (ctx : BenchmarkContext) : unit =
+        counter <- getCounter ctx "TestCounter"
+
+    [<PerfBenchmark(
+        Description = "Parse",
+        NumberOfIterations = 10,
+        RunMode = RunMode.Throughput,
+        RunTimeMilliseconds = 1000,
+        TestMode = TestMode.Measurement)>]
+    [<CounterMeasurement("TestCounter")>]
+    [<MemoryMeasurement(MemoryMetric.TotalBytesAllocated)>]
+    [<GcTotalAssertion(GcMetric.TotalCollections, GcGeneration.Gen2, MustBe.ExactlyEqualTo, 0.)>]
+    member __.Benchmark (ctx : BenchmarkContext) : unit =
+        System.Text.Encoding.UTF8.GetString jsonSchemaBytes
+        |> Json.tryParse
+        |> ignore
+        incr counter
+
 type Deserialize() =
     let mutable counter : Counter = Unchecked.defaultof<_>
 
