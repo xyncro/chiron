@@ -361,7 +361,9 @@ type Parse() =
         RunMode = RunMode.Throughput,
         RunTimeMilliseconds = 1000,
         TestMode = TestMode.Measurement)>]
-    [<CounterThroughputAssertion("TestCounter", MustBe.GreaterThan, 1000.)>]
+    [<CounterMeasurement("TestCounter")>]
+    [<MemoryMeasurement(MemoryMetric.TotalBytesAllocated)>]
+    [<GcTotalAssertion(GcMetric.TotalCollections, GcGeneration.Gen2, MustBe.ExactlyEqualTo, 0.)>]
     member __.Benchmark (ctx : BenchmarkContext) : unit =
         Json.tryParse jsonSchemaStr |> ignore
         incr counter
@@ -379,7 +381,9 @@ type Deserialize() =
         RunMode = RunMode.Throughput,
         RunTimeMilliseconds = 1000,
         TestMode = TestMode.Measurement)>]
-    [<CounterThroughputAssertion("TestCounter", MustBe.GreaterThan, 1000.)>]
+    [<CounterMeasurement("TestCounter")>]
+    [<MemoryMeasurement(MemoryMetric.TotalBytesAllocated)>]
+    [<GcTotalAssertion(GcMetric.TotalCollections, GcGeneration.Gen2, MustBe.ExactlyEqualTo, 0.)>]
     member __.Benchmark (ctx : BenchmarkContext) : unit =
         (Json.tryDeserialize jsonSchemaJson : Choice<JsonSchema,_>) |> ignore
         incr counter
@@ -397,7 +401,9 @@ type Serialize() =
         RunMode = RunMode.Throughput,
         RunTimeMilliseconds = 1000,
         TestMode = TestMode.Measurement)>]
-    [<CounterThroughputAssertion("TestCounter", MustBe.GreaterThan, 1000.)>]
+    [<CounterMeasurement("TestCounter")>]
+    [<MemoryMeasurement(MemoryMetric.TotalBytesAllocated)>]
+    [<GcTotalAssertion(GcMetric.TotalCollections, GcGeneration.Gen2, MustBe.ExactlyEqualTo, 0.)>]
     member __.Benchmark (ctx : BenchmarkContext) : unit =
         Json.serialize jsonSchema |> ignore
         incr counter
@@ -415,7 +421,9 @@ type Format() =
         RunMode = RunMode.Throughput,
         RunTimeMilliseconds = 1000,
         TestMode = TestMode.Measurement)>]
-    [<CounterThroughputAssertion("TestCounter", MustBe.GreaterThan, 1000.)>]
+    [<CounterMeasurement("TestCounter")>]
+    [<MemoryMeasurement(MemoryMetric.TotalBytesAllocated)>]
+    [<GcTotalAssertion(GcMetric.TotalCollections, GcGeneration.Gen2, MustBe.ExactlyEqualTo, 0.)>]
     member __.Benchmark (ctx : BenchmarkContext) : unit =
         Json.format jsonSchemaJson |> ignore
         incr counter
