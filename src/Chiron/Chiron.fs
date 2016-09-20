@@ -1,4 +1,4 @@
-﻿module Chiron
+module Chiron
 
 open System
 open System.Globalization
@@ -1130,3 +1130,6 @@ module Patterns =
             Optic.get (Json.Object_ >?> Map.key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 a -> Some a
                                                          | _ -> None)
+
+[<assembly:System.Runtime.CompilerServices.InternalsVisibleTo("Chiron.Tests")>]
+()
