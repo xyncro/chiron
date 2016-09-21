@@ -1171,5 +1171,5 @@ module Patterns =
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 a -> Some a
                                                          | _ -> None)
 
-[<assembly:System.Runtime.CompilerServices.InternalsVisibleTo("Chiron.Tests")>]
+[<assembly:System.Runtime.CompilerServices.InternalsVisibleTo ("Chiron.Tests")>]
 ()
