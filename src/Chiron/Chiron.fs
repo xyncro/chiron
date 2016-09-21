@@ -1,4 +1,4 @@
-﻿module Chiron
+module Chiron
 
 open System
 open System.Globalization
@@ -379,26 +379,66 @@ module internal Escaping =
     let parse =
         many charP
 
-    let escape (s: string) =
-        let rec escape r =
-            function | [] -> r
-                     | h :: t when (unescaped (int h)) ->
-                        escape (r @ [ h ]) t
-                     | h :: t ->
-                        let n =
-                            match h with
-                            | '"'  -> [ '\\'; '"' ]
-                            | '\\' -> [ '\\'; '\\' ]
-                            | '\b' -> [ '\\'; 'b' ]
-                            | '\f' -> [ '\\'; 'f' ]
-                            | '\n' -> [ '\\'; 'n' ]
-                            | '\r' -> [ '\\'; 'r' ]
-                            | '\t' -> [ '\\'; 't' ]
-                            | x ->    [ '\\'; 'u' ] @ [ for c in (((int x).ToString ("X4")).ToCharArray ()) -> c ]
+    let private escapeChars =
+        [| '"'; '\\'; '\n'; '\r'; '\t'; '\b'; '\f'
+           '\u0000'; '\u0001'; '\u0002'; '\u0003'
+           '\u0004'; '\u0005'; '\u0006'; '\u0007'
+           '\u000B'; '\u000E'; '\u000F'
+           '\u0010'; '\u0011'; '\u0012'; '\u0013'
+           '\u0014'; '\u0015'; '\u0016'; '\u0017'
+           '\u0018'; '\u0019'; '\u001A'; '\u001B'
+           '\u001C'; '\u001D'; '\u001E'; '\u001F' |]
 
-                        escape (r @ n) t
-
-        new string (List.toArray (escape [] [ for c in (s.ToCharArray ()) -> c ]))
+    let escape (s: string) : string =
+        let mutable nextEscapeIndex = s.IndexOfAny(escapeChars)
+        if nextEscapeIndex = -1 then s else
+        let sb = System.Text.StringBuilder(String.length s)
+        let mutable lastIndex = 0
+        while (nextEscapeIndex <> -1) do
+            if nextEscapeIndex > lastIndex then
+                sb.Append(s, lastIndex, nextEscapeIndex - lastIndex) |> ignore
+            match s.[nextEscapeIndex] with
+            | '"' -> sb.Append @"\"""
+            | '\\' -> sb.Append @"\\"
+            | '\n' -> sb.Append @"\n"
+            | '\r' -> sb.Append @"\r"
+            | '\t' -> sb.Append @"\t"
+            | '\f' -> sb.Append @"\f"
+            | '\b' -> sb.Append @"\b"
+            | '\u0000' -> sb.Append @"\u0000"
+            | '\u0001' -> sb.Append @"\u0001"
+            | '\u0002' -> sb.Append @"\u0002"
+            | '\u0003' -> sb.Append @"\u0003"
+            | '\u0004' -> sb.Append @"\u0004"
+            | '\u0005' -> sb.Append @"\u0005"
+            | '\u0006' -> sb.Append @"\u0006"
+            | '\u0007' -> sb.Append @"\u0007"
+            | '\u000B' -> sb.Append @"\u000B"
+            | '\u000E' -> sb.Append @"\u000E"
+            | '\u000F' -> sb.Append @"\u000F"
+            | '\u0010' -> sb.Append @"\u0010"
+            | '\u0011' -> sb.Append @"\u0011"
+            | '\u0012' -> sb.Append @"\u0012"
+            | '\u0013' -> sb.Append @"\u0013"
+            | '\u0014' -> sb.Append @"\u0014"
+            | '\u0015' -> sb.Append @"\u0015"
+            | '\u0016' -> sb.Append @"\u0016"
+            | '\u0017' -> sb.Append @"\u0017"
+            | '\u0018' -> sb.Append @"\u0018"
+            | '\u0019' -> sb.Append @"\u0019"
+            | '\u001A' -> sb.Append @"\u001A"
+            | '\u001B' -> sb.Append @"\u001B"
+            | '\u001C' -> sb.Append @"\u001C"
+            | '\u001D' -> sb.Append @"\u001D"
+            | '\u001E' -> sb.Append @"\u001E"
+            | '\u001F' -> sb.Append @"\u001F"
+            | c -> sb.Append(@"\u").Append((int c).ToString("X4"))
+            |> ignore
+            lastIndex <- nextEscapeIndex + 1
+            nextEscapeIndex <- s.IndexOfAny(escapeChars, lastIndex)
+        if lastIndex < String.length s then
+            sb.Append (s, lastIndex, String.length s - lastIndex) |> ignore
+        sb.ToString()
 
 (* Parsing
 
@@ -1130,3 +1170,6 @@ module Patterns =
             Optic.get (Json.Object_ >?> Map.key_ key)
          >> Option.bind (Json.tryDeserialize >> function | Choice1Of2 a -> Some a
                                                          | _ -> None)
+
+[<assembly:System.Runtime.CompilerServices.InternalsVisibleTo("Chiron.Tests")>]
+()

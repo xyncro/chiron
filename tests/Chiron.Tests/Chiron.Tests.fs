@@ -124,6 +124,28 @@ let ``Json.format returns correct values`` () =
     Json.format (String "푟") =! "\"푟\""
     Json.format (String "\t") =! "\"\\t\""
 
+[<Fact>]
+let ``escape is not pathological for cases with escapes`` () =
+    let testObj =
+        Json.Array
+            [ for i in 1..100000 do
+                yield Json.String <| "he\nllo\u0006\t 푟 " + string i ]
+    let testString = Json.format testObj
+    let sw = System.Diagnostics.Stopwatch.StartNew()
+    let escaped = Escaping.escape testString
+    let time = sw.ElapsedMilliseconds
+    printfn "String length: %i, JSON escaped length: %i, Time: %i ms" (String.length testString) (String.length escaped) time
+    Assert.InRange(time, 0L, 5000L)
+
+[<Fact>]
+let ``escape is not pathological for non-escaped cases`` () =
+    let testString = String.replicate 2500000 "a"
+    let sw = System.Diagnostics.Stopwatch.StartNew()
+    let escaped = Escaping.escape testString
+    let time = sw.ElapsedMilliseconds
+    printfn "String length: %i, JSON escaped length: %i, Time: %i ms" (String.length testString) (String.length escaped) time
+    Assert.InRange(time, 0L, 5000L)
+
 (* Mapping
 
    Tests exercising mapping functions between Json and other F#
