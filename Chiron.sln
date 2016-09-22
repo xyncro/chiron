@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{10A1D756-4F8F-47DC-882E-8CFE58D5EE55}"
 EndProject
@@ -15,28 +15,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "paket", "paket", "{2096F0EA
 		paket.lock = paket.lock
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "references", "references", "{A9BA802C-64D5-4706-8465-657F8AF7180F}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{D85F3E6B-3A52-4099-953E-06B9766538A4}"
-	ProjectSection(SolutionItems) = preProject
-		src\Chiron\Chiron.fsproj.paket.references = src\Chiron\Chiron.fsproj.paket.references
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{7BA60919-04CD-4D84-AFA7-A2F908541D95}"
-	ProjectSection(SolutionItems) = preProject
-		tests\Chiron.Tests\Chiron.Tests.fsproj.paket.references = tests\Chiron.Tests\Chiron.Tests.fsproj.paket.references
-	EndProjectSection
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{21B241CF-5EC0-40D9-80E3-3F6016F9B31F}"
 	ProjectSection(SolutionItems) = preProject
 		build.cmd = build.cmd
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{E3D6C8D9-C156-414B-A293-97147CB020BC}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7EC59692-3139-46DF-BFE6-9151C13484E2}"
-	ProjectSection(SolutionItems) = preProject
-		src\Chiron\Chiron.fsproj.paket.template = src\Chiron\Chiron.fsproj.paket.template
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "targets", "targets", "{B549F103-6E02-46EC-A285-C894B810CA49}"
@@ -45,21 +26,9 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron.Profile259", "target
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron", "src\Chiron\Chiron.fsproj", "{751FDB83-50C4-47E4-931E-C2479366B2B6}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "targets", "targets", "{DC20471D-B8FA-42D2-9FAD-11E940BCB862}"
-EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron.Net40", "targets\Chiron.Net40\Chiron.Net40.fsproj", "{FF38D788-043B-4597-BF02-D198CFAAB1DB}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Chiron.Tests", "tests\Chiron.Tests\Chiron.Tests.fsproj", "{2D8CE578-C2C9-451C-BD88-DDF0FD53D580}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "net40", "net40", "{9FDD58BF-88E4-47A1-8F0D-BBC66C0185CC}"
-	ProjectSection(SolutionItems) = preProject
-		targets\Chiron.Net40\Chiron.Net40.fsproj.paket.references = targets\Chiron.Net40\Chiron.Net40.fsproj.paket.references
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "profile259", "profile259", "{1D7456DE-AD4E-48B0-8B75-4F7FFFD7F459}"
-	ProjectSection(SolutionItems) = preProject
-		targets\Chiron.Profile259\Chiron.Profile259.fsproj.paket.references = targets\Chiron.Profile259\Chiron.Profile259.fsproj.paket.references
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "net40", "net40", "{C01C395D-E176-4A5D-ABFC-3607E6295174}"
 EndProject
@@ -93,19 +62,11 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{2096F0EA-E379-4C9A-8546-680617B7CC1E} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
-		{A9BA802C-64D5-4706-8465-657F8AF7180F} = {2096F0EA-E379-4C9A-8546-680617B7CC1E}
-		{D85F3E6B-3A52-4099-953E-06B9766538A4} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
-		{7BA60919-04CD-4D84-AFA7-A2F908541D95} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
 		{21B241CF-5EC0-40D9-80E3-3F6016F9B31F} = {5E1D0790-B7BC-46CF-8780-4E66EEC95AC7}
-		{E3D6C8D9-C156-414B-A293-97147CB020BC} = {2096F0EA-E379-4C9A-8546-680617B7CC1E}
-		{7EC59692-3139-46DF-BFE6-9151C13484E2} = {E3D6C8D9-C156-414B-A293-97147CB020BC}
 		{6863CA88-C546-4EFF-80F3-41C813F239C8} = {9D558432-C8EF-48C3-B488-BB35FF2E5730}
 		{751FDB83-50C4-47E4-931E-C2479366B2B6} = {10A1D756-4F8F-47DC-882E-8CFE58D5EE55}
-		{DC20471D-B8FA-42D2-9FAD-11E940BCB862} = {A9BA802C-64D5-4706-8465-657F8AF7180F}
 		{FF38D788-043B-4597-BF02-D198CFAAB1DB} = {C01C395D-E176-4A5D-ABFC-3607E6295174}
 		{2D8CE578-C2C9-451C-BD88-DDF0FD53D580} = {9CFCA560-5277-474D-9535-5895502DAF4E}
-		{9FDD58BF-88E4-47A1-8F0D-BBC66C0185CC} = {DC20471D-B8FA-42D2-9FAD-11E940BCB862}
-		{1D7456DE-AD4E-48B0-8B75-4F7FFFD7F459} = {DC20471D-B8FA-42D2-9FAD-11E940BCB862}
 		{C01C395D-E176-4A5D-ABFC-3607E6295174} = {B549F103-6E02-46EC-A285-C894B810CA49}
 		{9D558432-C8EF-48C3-B488-BB35FF2E5730} = {B549F103-6E02-46EC-A285-C894B810CA49}
 	EndGlobalSection

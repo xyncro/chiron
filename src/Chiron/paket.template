@@ -8,7 +8,7 @@ description
 tags
     functional, json, f#, optics
 version
-    6.2.1
+    6.3.0-rc1
 owners
     Andrew Cherry
 authors

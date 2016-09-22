@@ -390,13 +390,13 @@ module internal Escaping =
            '\u001C'; '\u001D'; '\u001E'; '\u001F' |]
 
     let escape (s: string) : string =
-        let mutable nextEscapeIndex = s.IndexOfAny(escapeChars)
+        let mutable nextEscapeIndex = s.IndexOfAny (escapeChars)
         if nextEscapeIndex = -1 then s else
-        let sb = System.Text.StringBuilder(String.length s)
+        let sb = System.Text.StringBuilder (String.length s)
         let mutable lastIndex = 0
         while (nextEscapeIndex <> -1) do
             if nextEscapeIndex > lastIndex then
-                sb.Append(s, lastIndex, nextEscapeIndex - lastIndex) |> ignore
+                sb.Append (s, lastIndex, nextEscapeIndex - lastIndex) |> ignore
             match s.[nextEscapeIndex] with
             | '"' -> sb.Append @"\"""
             | '\\' -> sb.Append @"\\"
@@ -435,10 +435,10 @@ module internal Escaping =
             | c -> sb.Append(@"\u").Append((int c).ToString("X4"))
             |> ignore
             lastIndex <- nextEscapeIndex + 1
-            nextEscapeIndex <- s.IndexOfAny(escapeChars, lastIndex)
+            nextEscapeIndex <- s.IndexOfAny (escapeChars, lastIndex)
         if lastIndex < String.length s then
             sb.Append (s, lastIndex, String.length s - lastIndex) |> ignore
-        sb.ToString()
+        sb.ToString ()
 
 (* Parsing
 
@@ -788,6 +788,9 @@ module Mapping =
 
         (* Basic Types *)
 
+        static member inline FromJson (_: unit) =
+            Json.Optic.get Json.Null_
+
         static member inline FromJson (_: bool) =
             Json.Optic.get Json.Bool_
 
@@ -961,6 +964,9 @@ module Mapping =
     type ToJsonDefaults = ToJsonDefaults with
 
         (* Basic Types *)
+
+        static member inline ToJson (x: unit) =
+            Json.Optic.set Json.Null_ x
 
         static member inline ToJson (x: bool) =
             Json.Optic.set Json.Bool_ x
