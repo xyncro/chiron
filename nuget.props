@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>7.0.0</VersionPrefix>
+    <Authors>Andrew Cherry;Michael Newton;Henrik Feldt;Marcus Griep;Tony Williams</Authors>
+    <Description>Monadic JSON serialization/deserialization library for F#</Description>
+    <Copyright>Copyright © Xyncro Ltd</Copyright>
+    <PackageLicenseUrl>https://github.com/xyncro/chiron/blob/master/LICENSE.md</PackageLicenseUrl>
+    <PackageProjectUrl>https://xyncro.tech/chiron</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/xyncro/chiron</RepositoryUrl>
+    <PackageTags>$(PackageTags);functional;json;optics;f#;fsharp;serialization;rfc7159</PackageTags>
+  </PropertyGroup>
+  <Import Condition="Exists('version.props')" Project="version.props"/>
+</Project>

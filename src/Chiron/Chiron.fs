@@ -101,7 +101,7 @@ module Functional =
     [<RequireQualifiedAccess>]
     module Json =
 
-        let inline init (a: 'a) : Json<'a> = 
+        let inline init (a: 'a) : Json<'a> =
             fun json ->
                 Value a, json
 
@@ -136,7 +136,7 @@ module Functional =
    Symbolic operators for working with Json<'a> functions, providing
    an operator based concise alternative to the primitive Json<'a> combinators
    given as part of Functional.
-   
+
    This module is not opened by default, as symbolic operators are a matter
    of taste and may also clash with other operators from other libraries. *)
 
@@ -541,7 +541,7 @@ module Parsing =
          || i = 0x30
 
     let private e i =
-            i = 0x45 
+            i = 0x45
          || i = 0x65
 
     let private minusP =
@@ -722,8 +722,8 @@ module Formatting =
         function | () -> append "null"
 
     and private formatObject level options =
-        function | x -> 
-                       append "{" 
+        function | x ->
+                       append "{"
                     >> options.NewLine (level + 1)
                     >> join (fun (k, v) -> appendf "\"{0}\":" (Escaping.escape k) >> options.Spacing >> formatJson (level + 1) options v)
                             (append "," >> options.NewLine (level + 1))
@@ -956,7 +956,7 @@ module Mapping =
             =<< Json.Optic.get Json.Array_
 
     (* To
-    
+
         *)
 
     (* Defaults *)
@@ -1011,7 +1011,7 @@ module Mapping =
 
         static member inline ToJson (x: DateTime) =
             Json.Optic.set Json.String_ (x.ToUniversalTime().ToString("o"))
-        
+
         static member inline ToJson (x: DateTimeOffset) =
             Json.Optic.set Json.String_ (x.ToString("o"))
 
@@ -1034,8 +1034,8 @@ module Mapping =
     let inline internal toJson (x: 'a) =
         snd (toJsonDefaults (x, ToJsonDefaults) (Object (Map.empty)))
 
-    let inline internal toJsonWith (f:'a -> unit Json) (x: 'a) = 
-        snd (f x (Object (Map.empty))) 
+    let inline internal toJsonWith (f:'a -> unit Json) (x: 'a) =
+        snd (f x (Object (Map.empty)))
 
     (* Defaults *)
 
@@ -1059,7 +1059,7 @@ module Mapping =
         (* Options *)
 
         static member inline ToJson (x: 'a option) =
-            Json.Optic.set id_ ((function | Some a -> toJson a 
+            Json.Optic.set id_ ((function | Some a -> toJson a
                                           | _ -> Null ()) x)
 
         (* Sets *)
@@ -1150,7 +1150,7 @@ module Mapping =
         let inline serialize a =
             toJson a
 
-        let inline serializeWith f a = 
+        let inline serializeWith f a =
             toJsonWith f a
 
 (* Patterns
