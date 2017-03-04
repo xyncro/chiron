@@ -5,8 +5,9 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <Import Project="..\..\nuget.props" />
-      <ItemGroup>
+  <ItemGroup>
     <Compile Include="Chiron.fs" />
+    <Compile Include="Chiron.New.fs" />
     <EmbeddedResource Include="**\*.resx" />
   </ItemGroup>
   <ItemGroup>

@@ -71,16 +71,40 @@ type ParseTest () =
         let jsonString = loadJsonResourceAsString "fparsec"
         Chiron.Parsing.Json.parse jsonString
 
+    [<Benchmark>]
+    member __.Chiron_New_Parse () : ChironN.NewParser.Json =
+        let jsonString = loadJsonResourceAsString "fparsec"
+        ChironN.NewParser.Json.parse jsonString
+
     [<Benchmark(Baseline=true)>]
     member __.Chiron_Old_ParseStream () : Json =
         use jsonStream = loadJsonResource "fparsec"
         Bench.Chiron.parse jsonStream
 
+    [<Benchmark>]
+    member __.Chiron_New_ParseStream () : ChironN.NewParser.Result<ChironN.NewParser.Json,_> =
+        use jsonStream = loadJsonResource "fparsec"
+        ChironN.NewParser.Json.parseStream jsonStream
+
 [<Config(typeof<CoreConfig>)>]
 type FormatTest () =
+    let jsonN =
+        loadJsonResourceAsString "fparsec"
+        |> ChironN.NewParser.Json.parse
+
     let jsonO =
         loadJsonResourceAsString "fparsec"
         |> Chiron.Parsing.Json.parse
+
+    [<Benchmark>]
+    member __.Chiron_New () =
+        let sb = System.Text.StringBuilder()
+        (ChironN.NewParser.Formatting.formatJson 0u ChironN.NewParser.Formatting.JsonFormattingOptions.Compact jsonN sb).ToString()
+
+    [<Benchmark>]
+    member __.Chiron_New_Pre () =
+        let sb = System.Text.StringBuilder(ChironN.NewParser.Formatting.calcLength 0u ChironN.NewParser.Formatting.JsonFormattingOptions.Compact 0u jsonN |> int)
+        (ChironN.NewParser.Formatting.formatJson 0u ChironN.NewParser.Formatting.JsonFormattingOptions.Compact jsonN sb).ToString()
 
     [<Benchmark(Baseline=true)>]
     member __.Chiron_Old () =
