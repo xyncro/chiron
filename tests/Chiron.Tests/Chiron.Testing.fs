@@ -24,13 +24,13 @@ type Arbitrary = Arbitrary with
         |> Arb.convert (fun dt -> dt.ToUniversalTime() |> UtcDateTime) (fun (UtcDateTime dt) -> dt)
 
     static member Json () : Arbitrary<Json> =
-        let genNull = Null () |> Gen.constant
+        let genNull = Json.``null`` |> Gen.constant
         let genNonNullString = Arb.generate<NonNull<string>> |> Gen.map (fun nes -> nes.Get)
-        let genJsonString = genNonNullString |> Gen.map String
-        let genJsonNumber = Arb.generate<decimal> |> Gen.map Number
-        let genJsonBool = Arb.generate<bool> |> Gen.map Bool
-        let genJsonArray size innerGen = Gen.listOfLength size innerGen |> Gen.map Array
-        let genJsonObject size innerGen = Gen.map2 pair genNonNullString innerGen |> Gen.listOfLength size |> Gen.map (Map.ofList >> Object)
+        let genJsonString = genNonNullString |> Gen.map Json.ofString
+        let genJsonNumber = Arb.generate<decimal> |> Gen.map Json.ofDecimal
+        let genJsonBool = Arb.generate<bool> |> Gen.map Json.ofBool
+        let genJsonArray size innerGen = Gen.listOfLength size innerGen |> Gen.map Json.ofList
+        let genJsonObject size innerGen = Gen.map2 pair genNonNullString innerGen |> Gen.listOfLength size |> Gen.map (JsonObject.ofPropertyList >> JsonObject.optimizeWrite >> JsonObject.toJson)
 
         let sqrtSize = float >> sqrt >> int
 
@@ -54,17 +54,17 @@ type Arbitrary = Arbitrary with
             else
                 (shrunk |> Seq.map map)
 
-        let shrinkToNull = Seq.singleton (Null ())
-        let shrinkToBool = Seq.ofList [ Bool true; Bool false ]
-        let numberOrString = Seq.ofList [ Number 0M; String "" ]
+        let shrinkToNull = Seq.singleton (Json.``null``)
+        let shrinkToBool = Seq.ofList [ Json.ofBool true; Json.ofBool false ]
+        let numberOrString = Seq.ofList [ Json.ofDecimal 0M; Json.ofString "" ]
 
         let shrink = function
-            | Null () -> Seq.empty
-            | Bool b -> ifFullyShrunkThen b shrinkToNull Bool
-            | String s -> ifFullyShrunkThen s shrinkToBool String
-            | Number n -> ifFullyShrunkThen n shrinkToBool Number
-            | Array a -> ifFullyShrunkThen a numberOrString Array
-            | Object o -> ifFullyShrunkThen o numberOrString Object
+            | Null -> Seq.empty
+            | Bool b -> ifFullyShrunkThen b shrinkToNull Json.ofBool
+            | String s -> ifFullyShrunkThen s shrinkToBool Json.ofString
+            | Number n -> ifFullyShrunkThen (System.Decimal.Parse n) shrinkToBool Json.ofDecimal
+            | Array a -> ifFullyShrunkThen a numberOrString Json.ofList
+            | Object o -> ifFullyShrunkThen JsonObject.toJson numberOrString (fun f -> f JsonObject.empty)
 
         let getDepthLimit = float >> (fun f -> System.Math.Log (f,3.)) >> int
 
@@ -80,7 +80,7 @@ module SelfTest =
     let ``Custom arbitrary Json generates sufficiently arbitrary Json`` () =
         let ``Is not an object with a member array containing a fourth item which is a String`` (v : Json) =
             match v with
-            | Object m -> Map.exists (fun _ v -> (match v with Array (_::_::_::(String _)::_::_) -> true | _ -> false)) m |> not
+            | Object m -> JsonObject.toPropertyList m |> List.exists (fun (_, v) -> (match v with Array (_::_::_::(String _)::_::_) -> true | _ -> false)) |> not
             | _ -> true
         raises
             <@ Check.One
@@ -92,5 +92,5 @@ module SelfTest =
         match v with
         | String null -> false
         | Array a -> List.forall ``Arbitrary Json doesn't have null strings`` a
-        | Object o -> Map.forall (fun k v -> k <> null && ``Arbitrary Json doesn't have null strings`` v) o
+        | Object o -> JsonObject.toPropertyList o |> List.forall (fun (k, v) -> k <> null && ``Arbitrary Json doesn't have null strings`` v)
         | _ -> true

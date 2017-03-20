@@ -1,4 +1,4 @@
-﻿[<FsCheck.Xunit.Arbitrary(typeof<Chiron.Testing.Arbitrary>)>]
+﻿[<FsCheck.Xunit.Properties(Arbitrary=[|typeof<Chiron.Testing.Arbitrary>|])>]
 module Chiron.Tests.Properties
 
 open Xunit
@@ -6,15 +6,18 @@ open FsCheck
 open FsCheck.Xunit
 open Swensen.Unquote
 open Chiron
-open Chiron.Operators
+open Chiron.ObjectReader.Operators
+open Chiron.Formatting
+open Chiron.Parsing
+open Chiron.Serialization
 open Chiron.Testing
 
-let inline doRoundTripTest v =
-    let serialize,deserialize = Json.serialize, Json.deserialize
-    test <@ v |> serialize |> Json.format |> Json.parse |> deserialize = v @>
+let inline doRoundTripTest (v : 'a) : _ when (^a or ChironDefaults) : (static member ToJson: ^a -> Json) and (^a or ChironDefaults) : (static member FromJson: ^a -> JsonReader<'a>) =
+    let (serialize : JsonWriter<'a>),(deserialize : JsonReader<'a>) = Json.serialize, Json.deserialize
+    test <@ v |> serialize |> Json.format |> Json.parseOrThrow |> deserialize = Ok v @>
 
 [<Property>]
-let ``Non-null strings can be round-tripped`` (NonNull str) =
+let ``Non-null strings can be round-tripped`` (NonNull (str : string)) =
     doRoundTripTest str
 
 [<Property>]
@@ -45,11 +48,11 @@ let ``int64 can be round-tripped`` (v : int64) =
 let ``uint64 can be round-tripped`` (v : uint64) =
     doRoundTripTest v
 
-[<Property(Skip="Handling of floating point values is known to fail to round-trip")>]
+[<Property>]
 let ``Normal single can be round-tripped`` (NormalSingle v) =
     doRoundTripTest v
 
-[<Property(Skip="Handling of floating point values is known to fail to round-trip")>]
+[<Property>]
 let ``Normal float can be round-tripped`` (NormalFloat v) =
     doRoundTripTest v
 
@@ -60,6 +63,11 @@ let ``decimal can be round-tripped`` (v : decimal) =
 [<Property>]
 let ``bool can be round-tripped`` (v : bool) =
     doRoundTripTest v
+
+[<Property>]
+let ``byte array can be round-tripped`` (NonNull (v : byte array)) =
+    doRoundTripTest v
+    //test <@ v |> Json.ofBytes |> Json.format |> Json.parseOrThrow |> ChironDefaults.FromJson Unchecked.defaultof<byte array> = Ok v @>
 
 //[<Property>]
 //let ``byte can be round-tripped`` (v : byte) =
@@ -76,15 +84,15 @@ let ``UTC DateTime can be round-tripped`` (UtcDateTime v) =
 [<Property>]
 let ``Deserialized DateTimes are UTC`` (v : System.DateTime) =
     let serialize, deserialize = Json.serialize, Json.deserialize
-    test <@ (v |> serialize |> Json.format |> Json.parse |> deserialize : System.DateTime).Kind = System.DateTimeKind.Utc @>
+    test <@ v |> serialize |> Json.format |> Json.parseOrThrow |> deserialize |> Result.map (fun (dt : System.DateTime) -> dt.Kind) = Ok System.DateTimeKind.Utc @>
 
 [<Property>]
 let ``DateTimeOffset can be round-tripped`` (v : System.DateTimeOffset) =
     doRoundTripTest v
 
-[<Property>]
-let ``Json can be round-tripped`` (v : Json) =
-    doRoundTripTest v
+// [<Property>]
+// let ``Json can be round-tripped`` (v : Json) =
+//     doRoundTripTest v
 
 type TestRecord =
     { StringField: string
@@ -93,17 +101,20 @@ type TestRecord =
       CharArrayField: System.Char[] }
 
     static member FromJson (_ : TestRecord) =
-            fun s g d c -> { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c }
-        <!> Json.read "stringField"
-        <*> Json.readOrDefault "guidField" None
-        <*> Json.tryRead "dateTimeField"
-        <*> Json.readWith (function | String s -> s.ToCharArray() |> Value | _ -> Error "Sadness") "charArrayField"
+        ( fun s g d c -> { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c }
+        <!> JsonObject.read "stringField"
+        <*> JsonObject.readOpt "guidField"
+        <*> JsonObject.readOpt "dateTimeField"
+        <*> JsonObject.readWith (function | String s -> s.ToCharArray() |> Ok | _ -> JsonResult.deserializationError "Sadness") "charArrayField")
+        |> ObjectReader.toJsonReader
 
     static member ToJson { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c } =
-            Json.write "stringField" s
-         *> Json.writeUnlessDefault "guidField" None g
-         *> Json.write "dateTimeField" d
-         *> (c |>Json.writeWith (System.String >> String) "charArrayField")
+        JsonObject.empty
+        |> JsonObject.write "stringField" s
+        |> JsonObject.writeOpt "guidField" g
+        |> JsonObject.writeOpt "dateTimeField" d
+        |> (c |> JsonObject.writeWith (System.String >> Json.ofString) "charArrayField")
+        |> JsonObject.toJson
 
 [<Property>]
 let ``TestRecord can be round-tripped`` (v : TestRecord) =
@@ -124,19 +135,21 @@ type TestUnion =
         | CaseWithFiveArgs (s, _, _, _, _) -> s
 
     static member ToJson (x: TestUnion) =
-        match x with
-        | CaseWithTwoArgs (a1, a2) -> Json.write "CaseWithTwoArgs" (a1, a2)
-        | CaseWithThreeArgs (a1, a2, a3) -> Json.write "CaseWithThreeArgs" (a1, a2, a3)
-        | CaseWithFourArgs (a1, a2, a3, a4) -> Json.write "CaseWithFourArgs" (a1, a2, a3, a4)
-        | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> Json.write "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
+        let f =
+            match x with
+            | CaseWithTwoArgs (a1, a2) -> JsonObject.write "CaseWithTwoArgs" (a1, a2)
+            | CaseWithThreeArgs (a1, a2, a3) -> JsonObject.write "CaseWithThreeArgs" (a1, a2, a3)
+            | CaseWithFourArgs (a1, a2, a3, a4) -> JsonObject.write "CaseWithFourArgs" (a1, a2, a3, a4)
+            | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> JsonObject.write "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
+        f JsonObject.empty |> JsonObject.toJson
 
     static member FromJson (_ : TestUnion) =
         function
-        | Property "CaseWithTwoArgs" (a1, a2) as json -> Json.init (CaseWithTwoArgs (a1, a2)) json
-        | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> Json.init (CaseWithThreeArgs (a1, a2, a3)) json
-        | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> Json.init (CaseWithFourArgs (a1, a2, a3, a4)) json
-        | Property "CaseWithFiveArgs" (a1, a2, a3, a4, a5) as json -> Json.init (CaseWithFiveArgs (a1, a2, a3, a4, a5)) json
-        | json -> Json.error (sprintf "couldn't deserialise %A" json) json
+        | Property "CaseWithTwoArgs" (a1, a2) as json -> Ok (CaseWithTwoArgs (a1, a2))
+        | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> Ok (CaseWithThreeArgs (a1, a2, a3))
+        | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> Ok (CaseWithFourArgs (a1, a2, a3, a4))
+        | Property "CaseWithFiveArgs" (a1, a2, a3, a4, a5) as json -> Ok (CaseWithFiveArgs (a1, a2, a3, a4, a5))
+        | json -> JsonResult.deserializationError "Couldn't find `CaseWithXXXArgs`"
 
 [<Property>]
 let ``TestUnion can be round-tripped`` (v : TestUnion) =

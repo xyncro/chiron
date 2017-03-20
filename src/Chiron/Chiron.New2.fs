@@ -1,4 +1,4 @@
-module ChironN.NewParser
+module ChironZ.NewParser
 
 open System
 open System.Globalization
@@ -151,7 +151,8 @@ type Serializer<'a> =
     'a -> Json
 
 module JsonResult =
-    let summarize = function
+    let summarize result =
+        match result with
         | Ok x -> sprintf "No errors"
         | Error [e] -> sprintf "Found 1 error:\n  %s" <| JsonFailure.toString e
         | Error errs ->
@@ -837,14 +838,17 @@ let deserialize =
 module Formatting =
     open System.Text
 
-    let inline append (sb: StringBuilder) (s: string) =
-        sb.Append s |> ignore
-    let inline appendSubstr (sb: StringBuilder) (s: string) (start: int) (count: int) =
-        sb.Append (s, start, count) |> ignore
-    let inline appendChar (sb: StringBuilder) (c: char) =
-        sb.Append c |> ignore
-    let inline appendCharRep (sb: StringBuilder) (c: char) (repeats: int) =
-        sb.Append (c, repeats) |> ignore
+    type Formatter<'a> =
+        'a -> StringBuilder -> StringBuilder
+
+    let inline append (s: string) (sb: StringBuilder) =
+        sb.Append s
+    let inline appendChar (c: char) (sb: StringBuilder) =
+        sb.Append c
+    let inline appendChars (cs: char array) (sb: StringBuilder) =
+        sb.Append cs
+    let inline appendCharRep (c: char) (repeats: int) (sb: StringBuilder) =
+        sb.Append (c, repeats)
 
     let escapeChars =
         [| '"'; '\\'; '\n'; '\r'; '\t'; '\b'; '\f'
@@ -900,23 +904,112 @@ module Formatting =
         | '\u001F' -> @"\u001F"
         | c -> @"\u" + (int c).ToString("X4")
 
-    let writeString (sb:System.Text.StringBuilder) (cs:string) =
-        let rec escapeState index =
-            append sb (escaped cs.[index])
-            let nextIndex = index + 1
-            if nextIndex < cs.Length then
-                if isEscapeChar cs.[nextIndex] |> not then
-                    coreState nextIndex
+    let unicodePrefix = ['u'; '0'; '0']
+
+    let writeUnicodeEscapePrefix sb =
+        appendChar 'u' sb
+        |> appendChar '0'
+        |> appendChar '0'
+
+    let writeEscapedChar c sb =
+        match c with
+        | '"' -> appendChar '"' sb
+        | '\\' -> appendChar '\\' sb
+        | '\n' -> appendChar 'n' sb
+        | '\r' -> appendChar 'r' sb
+        | '\t' -> appendChar 't' sb
+        | '\f' -> appendChar 'f' sb
+        | '\b' -> appendChar 'b' sb
+        | '\u0000' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '0'
+        | '\u0001' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '1'
+        | '\u0002' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '2'
+        | '\u0003' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '3'
+        | '\u0004' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '4'
+        | '\u0005' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '5'
+        | '\u0006' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '6'
+        | '\u0007' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '7'
+        | '\u000B' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar 'B'
+        | '\u000E' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar 'E'
+        | '\u000F' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar 'F'
+        | '\u0010' -> writeUnicodeEscapePrefix sb |> appendChar '0' |> appendChar '0'
+        | '\u0011' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '1'
+        | '\u0012' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '2'
+        | '\u0013' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '3'
+        | '\u0014' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '4'
+        | '\u0015' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '5'
+        | '\u0016' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '6'
+        | '\u0017' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '7'
+        | '\u0018' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '8'
+        | '\u0019' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar '9'
+        | '\u001A' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar 'A'
+        | '\u001B' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar 'B'
+        | '\u001C' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar 'C'
+        | '\u001D' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar 'D'
+        | '\u001E' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar 'E'
+        | '\u001F' -> writeUnicodeEscapePrefix sb |> appendChar '1' |> appendChar 'F'
+        | c -> appendChar 'u' sb |> append (int c).ToString("X4")
+
+    let writeChar c sb =
+        if isEscapeChar c then
+            appendChar '\\' sb
+            |> writeEscapedChar c
+        else appendChar c sb
+
+    let rec findFirstEscape (cs:string) (i: int) =
+        if isEscapeChar cs.[i] then
+            i
+        else if i < String.length cs - 1
+            findFirst cs (i + 1)
+        else
+            -1
+
+    let writeString (cs:string) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+        let rec inner (cs:string) (index:int) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+            if index < String.length cs then
+                let nextEscapeIndex = cs.IndexOfAny(escapeChars, index)
+                //let nextEscapeIndex = System.Array.FindIndex(cs, int index, isEscapeCharPred)
+                if nextEscapeIndex = -1 then
+                    sb.Append(cs,index,String.length cs - index)
+                else if nextEscapeIndex = index then
+                    append (escaped cs.[nextEscapeIndex]) sb
+                    |> inner cs (nextEscapeIndex + 1)
                 else
-                    escapeState nextIndex
-        and coreState index =
-            let nextEscapeIndex = cs.IndexOfAny(escapeChars, index)
-            if nextEscapeIndex = -1 then
-                appendSubstr sb cs index (cs.Length - index)
-            else
-                appendSubstr sb cs index (nextEscapeIndex - index)
-                escapeState nextEscapeIndex
-        coreState 0
+                    sb.Append(cs,index,nextEscapeIndex - index)
+                    |> append (escaped cs.[nextEscapeIndex])
+                    |> inner cs (nextEscapeIndex + 1)
+            else sb
+        inner cs 0 sb
+
+    let writeStringByChar (cs:string) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+        let rec inner (cs:string) (index:int) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+            if index < String.length cs then
+                writeChar cs.[index] sb
+                |> inner cs (index + 1)
+        inner cs 0 sb
+
+    // let rec joinElems sep strs (sb:System.Text.StringBuilder) =
+    //     match strs with
+    //     | [] -> sb
+    //     | [str] -> append str sb
+    //     | str :: [strs] -> append str sb |> append sep |> joinElems sep strs
+
+    let rec join (f: Formatter<'a>) (sep: string) values (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+        match values with
+        | [] -> sb
+        | [v] -> f v sb
+        | v :: vs ->
+            join f sep vs sb
+            |> append sep
+            |> f v
+
+    let rec joinRev (f: Formatter<'a>) (sep: string) values (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+        match values with
+        | [] -> sb
+        | [v] -> f v sb
+        | v :: vs ->
+            f v sb
+            |> append sep
+            |> joinRev f sep vs
 
     (* Options
 
@@ -931,7 +1024,7 @@ module Formatting =
     type ElementSpacing =
         | NoSpaceBetweenElements
         | SpaceBetweenElements
-        | NewLineBetweenElements of indentSpaces:int
+        | NewLineBetweenElements of indentSpaces:uint32
 
     type JsonFormattingOptions =
       { PropertyNameSpacing : PropertyNameSpacing
@@ -947,160 +1040,482 @@ module Formatting =
 
       static member Pretty =
         { PropertyNameSpacing = SpaceBetweenNameAndValue
-          ElementSpacing = NewLineBetweenElements 2 }
+          ElementSpacing = NewLineBetweenElements 2u }
 
     let propNameBaseLength = function
-        | NoSpaceBetweenNameAndValue -> 3
-        | SpaceBetweenNameAndValue -> 4
+        | NoSpaceBetweenNameAndValue -> 3u
+        | SpaceBetweenNameAndValue -> 4u
 
     let elementSpacingLength level = function
-        | NoSpaceBetweenElements -> 0
-        | SpaceBetweenElements -> 1
-        | NewLineBetweenElements spaces -> 1 + spaces * level
-
-    let calcStringLength (s: string) (agg:int) =
-        let rec inner (s: string) (index: int) (agg: int) =
-            if index < s.Length then
-                let nextEscapeIndex = s.IndexOfAny(escapeChars, index)
-                if nextEscapeIndex = -1 then
-                    agg - index + s.Length
-                else
-                    let weight =
-                        match s.[nextEscapeIndex] with
-                        | '\\' | '"' | '\n' | '\r' | '\t' | '\b' | '\f' -> 2
-                        | _ -> 6
-                    inner s (nextEscapeIndex + 1) (agg + weight)
-            else agg
-        inner s 0 agg
+        | NoSpaceBetweenElements -> 0u
+        | SpaceBetweenElements -> 1u
+        | NewLineBetweenElements spaces -> 1u + spaces * level
 
     let rec calcLength level options agg = function
         | Json.Array elems ->
-            let elemCount = List.length elems
-            let newLevel = level + 1
-            let baseLen = 2
-            let sepLen = elemCount - 1
+            let elemCount = List.length elems |> uint32
+            let newLevel = level + 1u
+            let baseLen = 2u
+            let sepLen = elemCount - 1u
             let lineLen = elemCount * (elementSpacingLength newLevel options.ElementSpacing) + (elementSpacingLength level options.ElementSpacing)
             List.fold (fun a e -> calcLength newLevel options a e) (agg + baseLen + sepLen + lineLen) elems
-        | Json.Bool true -> agg + 4
-        | Json.Bool false -> agg + 5
-        | Json.Number str -> agg + (String.length str)
-        | Json.Null -> agg + 4
+        | Json.Bool true -> agg + 4u
+        | Json.Bool false -> agg + 5u
+        | Json.Number str -> agg + (String.length str |> uint32)
+        | Json.Null -> agg + 4u
         | Json.Object (UnmappedObject props)
         | Json.Object (MappedObject (props,_)) ->
-            let propCount = List.length props
-            let newLevel = level + 1
-            let baseLen = 2
-            let sepLen = propCount - 1
+            let propCount = List.length props |> uint32
+            let newLevel = level + 1u
+            let baseLen = 2u
+            let sepLen = propCount - 1u
             let propNameBaseLen = propCount * (propNameBaseLength options.PropertyNameSpacing)
             let lineLen = propCount * (elementSpacingLength newLevel options.ElementSpacing) + (elementSpacingLength level options.ElementSpacing)
-            List.fold (fun a (k,v) -> calcLength newLevel options ((String.length k) + a) v) (agg + baseLen + propNameBaseLen + sepLen + lineLen) props
+            List.fold (fun a (k,v) -> calcLength newLevel options ((String.length k |> uint32) + a) v) (agg + baseLen + propNameBaseLen + sepLen + lineLen) props
         | Json.String s ->
-            calcStringLength s (agg + 2)
+            agg + 2u + (String.length s |> uint32)
 
-    let appendSpaceBetweenElements sb { ElementSpacing = es } level =
+    let appendSpaceBetweenElements { ElementSpacing = es } level sb =
         match es, level with
-        | NoSpaceBetweenElements, _ -> ()
-        | SpaceBetweenElements, _ -> appendChar sb ' '
-        | NewLineBetweenElements _, 0 -> appendChar sb '\n'
-        | NewLineBetweenElements s, l -> appendChar sb '\n'; appendCharRep sb ' ' (s * l |> int)
+        | NoSpaceBetweenElements, _ -> sb
+        | SpaceBetweenElements, _ -> appendChar ' ' sb
+        | NewLineBetweenElements _, 0u -> appendChar '\n' sb
+        | NewLineBetweenElements s, l -> appendChar '\n' |> appendCharRep ' ' (s * l |> int)
 
-    let addPropertyNameSeparator sb { PropertyNameSpacing = pns } =
+
+    let addArrayPrefix { ElementSpacing = es } level sb =
+        appendChar '[' sb
+        |> appendSpaceBetweenElements options level sb
+
+    let addArraySuffix { ElementSpacing = es } level sb =
+        match es, level with
+        | NoSpaceBetweenElements, _ -> append "]" sb
+        | SpaceBetweenElements, _ -> append " ]" sb
+        | NewLineBetweenElements 2u, 0u -> append "\n]" sb
+        | NewLineBetweenElements 2u, 1u -> append "\n  ]" sb
+        | NewLineBetweenElements 2u, 2u -> append "\n    ]" sb
+        | NewLineBetweenElements 2u, 3u -> append "\n      ]" sb
+        | NewLineBetweenElements 2u, 4u -> append "\n        ]" sb
+        | NewLineBetweenElements 2u, 5u -> append "\n          ]" sb
+        | NewLineBetweenElements 2u, 6u -> append "\n            ]" sb
+        | NewLineBetweenElements 2u, l -> append ("\n" + String.replicate (int l) "  " + "]") sb
+        | NewLineBetweenElements spaces, l -> append ("\n" + String.replicate (spaces * l |> int) " " + "]") sb
+
+    let addObjectPrefix { ElementSpacing = es } level sb =
+        match es, level with
+        | NoSpaceBetweenElements, _ -> append "{" sb
+        | SpaceBetweenElements, _ -> append "{ " sb
+        | NewLineBetweenElements 2u, 0u -> append "{\n" sb
+        | NewLineBetweenElements 2u, 1u -> append "{\n  " sb
+        | NewLineBetweenElements 2u, 2u -> append "{\n    " sb
+        | NewLineBetweenElements 2u, 3u -> append "{\n      " sb
+        | NewLineBetweenElements 2u, 4u -> append "{\n        " sb
+        | NewLineBetweenElements 2u, 5u -> append "{\n          " sb
+        | NewLineBetweenElements 2u, 6u -> append "{\n            " sb
+        | NewLineBetweenElements 2u, l -> append ("{\n" + String.replicate (int l) "  ") sb
+        | NewLineBetweenElements spaces, l -> append ("{\n" + String.replicate (spaces * l |> int) " ") sb
+
+    let addObjectSuffix { ElementSpacing = es } level sb =
+        match es, level with
+        | NoSpaceBetweenElements, _ -> append "}" sb
+        | SpaceBetweenElements, _ -> append " }" sb
+        | NewLineBetweenElements 2u, 0u -> append "\n}" sb
+        | NewLineBetweenElements 2u, 1u -> append "\n  }" sb
+        | NewLineBetweenElements 2u, 2u -> append "\n    }" sb
+        | NewLineBetweenElements 2u, 3u -> append "\n      }" sb
+        | NewLineBetweenElements 2u, 4u -> append "\n        }" sb
+        | NewLineBetweenElements 2u, 5u -> append "\n          }" sb
+        | NewLineBetweenElements 2u, 6u -> append "\n            }" sb
+        | NewLineBetweenElements 2u, l -> append ("\n" + String.replicate (int l) "  " + "}") sb
+        | NewLineBetweenElements spaces, l -> append ("\n" + String.replicate (spaces * l |> int) " " + "}") sb
+
+    let addElementSeparator { ElementSpacing = es } level sb =
+        match es, level with
+        | NoSpaceBetweenElements, _ -> append "," sb
+        | SpaceBetweenElements, _ -> append ", " sb
+        | NewLineBetweenElements 2u, 0u -> append ",\n" sb
+        | NewLineBetweenElements 2u, 1u -> append ",\n  " sb
+        | NewLineBetweenElements 2u, 2u -> append ",\n    " sb
+        | NewLineBetweenElements 2u, 3u -> append ",\n      " sb
+        | NewLineBetweenElements 2u, 4u -> append ",\n        " sb
+        | NewLineBetweenElements 2u, 5u -> append ",\n          " sb
+        | NewLineBetweenElements 2u, 6u -> append ",\n            " sb
+        | NewLineBetweenElements 2u, l -> append (",\n" + String.replicate (int l) "  ") sb
+        | NewLineBetweenElements spaces, l -> append (",\n" + String.replicate (spaces * l |> int) " ") sb
+
+    let elementSeparator level { ElementSpacing = es } =
+        match es, level with
+        | NoSpaceBetweenElements, _ -> System.String.Empty
+        | SpaceBetweenElements, _ -> " "
+        | NewLineBetweenElements 2u, 0u -> "\n"
+        | NewLineBetweenElements 2u, 1u -> "\n  "
+        | NewLineBetweenElements 2u, 2u -> "\n    "
+        | NewLineBetweenElements 2u, 3u -> "\n      "
+        | NewLineBetweenElements 2u, 4u -> "\n        "
+        | NewLineBetweenElements 2u, 5u -> "\n          "
+        | NewLineBetweenElements 2u, 6u -> "\n            "
+        | NewLineBetweenElements 2u, l -> "\n" + String.replicate (int l) "  "
+        | NewLineBetweenElements spaces, l -> "\n" + String.replicate (spaces * l |> int) " "
+
+    let addSeparation { ElementSpacing = es } space sb =
+        match es with
+        | NoSpaceBetweenElements -> sb
+        | SpaceBetweenElements
+        | NewLineBetweenElements _ -> append space sb
+
+    let appendSpaceBetweenNameAndValue { PropertyNameSpacing = pns } sb =
         match pns with
-        | NoSpaceBetweenNameAndValue -> appendChar sb ':'
-        | SpaceBetweenNameAndValue -> append sb ": "
+        | NoSpaceBetweenNameAndValue -> sb
+        | SpaceBetweenNameAndValue -> appendChar ' ' sb
 
-    let rec formatJson sb options level = function
-        | Json.Array elems -> formatArray sb options level elems
-        | Json.Bool x -> formatBool sb x
-        | Json.Number x -> formatNumber sb x
+    let addPropertyNameSeparator options sb =
+        appendChar ':' sb
+        |> appendSpaceBetweenNameAndValue options
+
+    let null = ['n'; 'u'; 'l'; 'l']
+    let trueChars = ['t'; 'r'; 'u'; 'e']
+    let falseChars = ['f'; 'a'; 'l'; 's'; 'e']
+
+    let rec formatJson level options x sb =
+        match x with
+        | Json.Array elems -> formatArray level options elems sb
+        | Json.Bool x -> formatBool x sb
+        | Json.Number x -> formatNumber x sb
         | Json.Null -> formatNull sb
-        | Json.Object (UnmappedObject props)
-        | Json.Object (MappedObject (props,_)) -> formatObject sb options level props
-        | Json.String s -> formatString sb s
+        | Json.Object (UnmappedObject o)
+        | Json.Object (MappedObject (o,_)) -> formatObject level options o sb
+        | Json.String s -> formatString s sb
 
-    and formatArray  sb options level elems =
-        let newLevel = level + 1
-        appendChar sb '['
-        appendSpaceBetweenElements sb options newLevel
-        joinArray sb options newLevel elems
-        appendSpaceBetweenElements sb options level
-        appendChar sb ']'
+    and formatArray level options elems sb =
+        let newLevel = level + 1u
+        appendChar '[' sb
+        |> appendSpaceBetweenElements options newLevel
+        |> joinArray options newLevel elems
+        |> appendSpaceBetweenElements options level
+        |> appendChar ']'
 
-    and formatBool sb b =
-        let str = if b then "true" else "false"
-        append sb str
+    and formatBool b sb =
+        if b then
+            appendChars trueChars sb
+        else
+            appendChars falseChars sb
 
-    and formatNumber sb n =
-        append sb n
+    and formatNumber n sb =
+        append n sb
 
     and formatNull sb =
-        append sb "null"
+        appendChars nullChars sb
 
-    and formatProperty sb options level (k,v) =
-        formatString sb k
-        addPropertyNameSeparator sb options
-        formatJson sb options level v
+    and formatProperty options level (k,v) sb =
+        formatString k sb
+        |> appendChar ':'
+        |> appendSpaceBetweenNameAndValue options
+        |> formatJson options level v
 
-    and formatObject sb options level props =
-        let newLevel = level + 1
-        appendChar sb '{'
-        appendSpaceBetweenElements sb options newLevel
-        joinObject sb options newLevel props
-        appendSpaceBetweenElements sb options level
-        appendChar sb '}'
+    and formatObject options level props sb =
+        let newLevel = level + 1u
+        let prefix = elementSeparator newLevel options
+        let separator = "," + prefix
+        let suffix = elementSeparator level options
+        appendChar '{' sb
+        |> appendSpaceBetweenElements options newLevel
+        |> joinObject options newLevel elems
+        |> appendSpaceBetweenElements options level
+        |> appendChar '}'
 
-    and formatString sb str =
-        appendChar sb '"'
-        writeString sb str
-        appendChar sb '"'
+    and formatString str sb =
+        appendChar '"' sb
+        |> writeString str
+        |> appendChar ''
 
-    and joinObject sb options level values =
+    let rec joinObject (f: Formatter<'a>) (sep: string) values (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
         match values with
-        | [] -> ()
-        | [v] -> formatProperty sb options level v
+        | [] -> sb
+        | [v] -> formatProperty options level v sb
         | v :: vs ->
-            joinObject sb options level vs
-            appendChar sb ','
-            appendSpaceBetweenElements sb options level
-            formatProperty sb options level v
+            joinObject options level sb
+            |> appendChar ','
+            |> appendSpaceBetweenElements options level
+            |> formatProperty options level v vs
 
-    and joinArray sb options level values =
+    and joinArray options level values (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
         match values with
-        | [] -> ()
-        | [v] -> formatJson sb options level v
+        | [] -> sb
+        | [v] -> formatJson options level v sb
         | v :: vs ->
-            formatJson sb options level v
-            appendChar sb ','
-            appendSpaceBetweenElements sb options level
-            joinArray sb options level vs
+            formatJson options level v sb
+            |> appendChar ','
+            |> appendSpaceBetweenElements options level
+            |> joinArray options level vs
+
+
+    (* Functions *)
+
+    [<RequireQualifiedAccess>]
+    module Json =
+
+        let format json =
+            StringBuilder ()
+            |> formatJson 0u JsonFormattingOptions.Compact json
+            |> string
+
+        let formatWith options json =
+            StringBuilder ()
+            |> formatJson 0u options json
+            |> string
+
+    module Array =
+        [<Struct>]
+        type State =
+            { Aggregate : string array
+              Position : int }
+
+        let calcStringTokens (s: string) (agg:int) =
+            let rec inner (s: string) (index: int) (agg: int) =
+                if index <= (String.length s - 1) then
+                    let nextEscapeIndex = s.IndexOfAny(escapeChars, index)
+                    if nextEscapeIndex = -1 then
+                        agg + 1
+                    else if nextEscapeIndex = index then
+                        inner s (nextEscapeIndex + 1) (agg + 1)
+                    else
+                        inner s (nextEscapeIndex + 1) (agg + 2)
+                else agg
+            inner s 0 agg
+
+        let calcTokens json =
+            let rec inner agg = function
+                | Json.Object (UnmappedObject props)
+                | Json.Object (MappedObject (props,_)) ->
+                    let propCount = List.length props
+                    List.fold (fun a (k,v) -> inner (calcStringTokens k (a + 2)) v) (agg + propCount * 2 + 1) props
+                | Json.Array elems ->
+                    let elemCount = List.length elems
+                    List.fold (fun a e -> inner a e) (agg + elemCount + 1) elems
+                | Json.Bool _
+                | Json.Number _
+                | Json.Null -> agg + 1
+                | Json.String s -> calcStringTokens s (agg + 2)
+            inner 0 json
+
+        let inline insert (s: string) (agg : string array) (pos : int) =
+            agg.[pos] <- s
+            pos + 1
+
+        let writeString (s: string) (agg : string array) (pos : int) =
+            let rec inner (s: string) (index: int) (agg : string array) (pos : int) =
+                if index < (String.length s - 1) then
+                    let nextEscapeIndex = s.IndexOfAny(escapeChars, index)
+                    if nextEscapeIndex = -1 && index = 0 then
+                        insert s agg pos
+                    else if nextEscapeIndex = -1 then
+                        insert (s.Substring(index, String.length s - index)) agg pos
+                    else if nextEscapeIndex = index then
+                        insert (escaped s.[nextEscapeIndex]) agg pos
+                        |> inner s (nextEscapeIndex + 1) agg
+                    else
+                        insert (s.Substring(index, String.length s - index)) agg pos
+                        |> insert (escaped s.[nextEscapeIndex]) agg
+                        |> inner s (nextEscapeIndex + 1) agg
+                else pos
+            inner s 0 agg pos
+
+        let addArrayPrefix { ElementSpacing = es } level agg pos =
+            match es, level with
+            | NoSpaceBetweenElements, _ -> insert "[" agg pos
+            | SpaceBetweenElements, _ -> insert "[ " agg pos
+            | NewLineBetweenElements 2u, 0u -> insert "[\n" agg pos
+            | NewLineBetweenElements 2u, 1u -> insert "[\n  " agg pos
+            | NewLineBetweenElements 2u, 2u -> insert "[\n    " agg pos
+            | NewLineBetweenElements 2u, 3u -> insert "[\n      " agg pos
+            | NewLineBetweenElements 2u, 4u -> insert "[\n        " agg pos
+            | NewLineBetweenElements 2u, 5u -> insert "[\n          " agg pos
+            | NewLineBetweenElements 2u, 6u -> insert "[\n            " agg pos
+            | NewLineBetweenElements 2u, l -> insert ("[\n" + String.replicate (int l) "  ") agg pos
+            | NewLineBetweenElements spaces, l -> insert ("[\n" + String.replicate (spaces * l |> int) " ") agg pos
+
+        let addArraySuffix { ElementSpacing = es } level agg pos =
+            match es, level with
+            | NoSpaceBetweenElements, _ -> insert "]" agg pos
+            | SpaceBetweenElements, _ -> insert " ]" agg pos
+            | NewLineBetweenElements 2u, 0u -> insert "\n]" agg pos
+            | NewLineBetweenElements 2u, 1u -> insert "\n  ]" agg pos
+            | NewLineBetweenElements 2u, 2u -> insert "\n    ]" agg pos
+            | NewLineBetweenElements 2u, 3u -> insert "\n      ]" agg pos
+            | NewLineBetweenElements 2u, 4u -> insert "\n        ]" agg pos
+            | NewLineBetweenElements 2u, 5u -> insert "\n          ]" agg pos
+            | NewLineBetweenElements 2u, 6u -> insert "\n            ]" agg pos
+            | NewLineBetweenElements 2u, l -> insert ("\n" + String.replicate (int l) "  " + "]") agg pos
+            | NewLineBetweenElements spaces, l -> insert ("\n" + String.replicate (spaces * l |> int) " " + "]") agg pos
+
+        let addObjectPrefix { ElementSpacing = es } level agg pos =
+            match es, level with
+            | NoSpaceBetweenElements, _ -> insert "{" agg pos
+            | SpaceBetweenElements, _ -> insert "{ " agg pos
+            | NewLineBetweenElements 2u, 0u -> insert "{\n" agg pos
+            | NewLineBetweenElements 2u, 1u -> insert "{\n  " agg pos
+            | NewLineBetweenElements 2u, 2u -> insert "{\n    " agg pos
+            | NewLineBetweenElements 2u, 3u -> insert "{\n      " agg pos
+            | NewLineBetweenElements 2u, 4u -> insert "{\n        " agg pos
+            | NewLineBetweenElements 2u, 5u -> insert "{\n          " agg pos
+            | NewLineBetweenElements 2u, 6u -> insert "{\n            " agg pos
+            | NewLineBetweenElements 2u, l -> insert ("{\n" + String.replicate (int l) "  ") agg pos
+            | NewLineBetweenElements spaces, l -> insert ("{\n" + String.replicate (spaces * l |> int) " ") agg pos
+
+        let addObjectSuffix { ElementSpacing = es } level agg pos =
+            match es, level with
+            | NoSpaceBetweenElements, _ -> insert "}" agg pos
+            | SpaceBetweenElements, _ -> insert " }" agg pos
+            | NewLineBetweenElements 2u, 0u -> insert "\n}" agg pos
+            | NewLineBetweenElements 2u, 1u -> insert "\n  }" agg pos
+            | NewLineBetweenElements 2u, 2u -> insert "\n    }" agg pos
+            | NewLineBetweenElements 2u, 3u -> insert "\n      }" agg pos
+            | NewLineBetweenElements 2u, 4u -> insert "\n        }" agg pos
+            | NewLineBetweenElements 2u, 5u -> insert "\n          }" agg pos
+            | NewLineBetweenElements 2u, 6u -> insert "\n            }" agg pos
+            | NewLineBetweenElements 2u, l -> insert ("\n" + String.replicate (int l) "  " + "}") agg pos
+            | NewLineBetweenElements spaces, l -> insert ("\n" + String.replicate (spaces * l |> int) " " + "}") agg pos
+
+        let addElementSeparator { ElementSpacing = es } level agg pos =
+            match es, level with
+            | NoSpaceBetweenElements, _ -> insert "," agg pos
+            | SpaceBetweenElements, _ -> insert ", " agg pos
+            | NewLineBetweenElements 2u, 0u -> insert ",\n" agg pos
+            | NewLineBetweenElements 2u, 1u -> insert ",\n  " agg pos
+            | NewLineBetweenElements 2u, 2u -> insert ",\n    " agg pos
+            | NewLineBetweenElements 2u, 3u -> insert ",\n      " agg pos
+            | NewLineBetweenElements 2u, 4u -> insert ",\n        " agg pos
+            | NewLineBetweenElements 2u, 5u -> insert ",\n          " agg pos
+            | NewLineBetweenElements 2u, 6u -> insert ",\n            " agg pos
+            | NewLineBetweenElements 2u, l -> insert (",\n" + String.replicate (int l) "  ") agg pos
+            | NewLineBetweenElements spaces, l -> insert (",\n" + String.replicate (spaces * l |> int) " ") agg pos
+
+        let addPropertyNameSeparator { PropertyNameSpacing = pns } agg pos =
+            match pns with
+            | NoSpaceBetweenNameAndValue -> insert ":" agg pos
+            | SpaceBetweenNameAndValue -> insert ": " agg pos
+
+        let rec formatJson options level x agg pos =
+            match x with
+            | Json.Array elems -> formatArray options level elems agg pos
+            | Json.Bool x -> formatBool x agg pos
+            | Json.Number x -> formatNumber x agg pos
+            | Json.Null -> formatNull agg pos
+            | Json.Object (UnmappedObject o)
+            | Json.Object (MappedObject (o,_)) -> formatObject options level o agg pos
+            | Json.String s -> formatString s agg pos
+
+        and formatArray options level elems agg pos =
+            let newLevel = level + 1u
+            addArrayPrefix options newLevel agg pos
+            |> joinArray options newLevel elems agg
+            |> addArraySuffix options level agg
+
+        and formatBool b agg pos =
+            let str =
+                if b then "true" else "false"
+            insert str agg pos
+
+        and formatNumber n agg pos =
+            insert n agg pos
+
+        and formatNull agg pos =
+            insert "null" agg pos
+
+        and formatProperty options level (k,v) agg pos =
+            formatString k agg pos
+            |> addPropertyNameSeparator options agg
+            |> formatJson options level v agg
+
+        and formatObject options level props agg pos =
+            let newLevel = level + 1u
+            addObjectPrefix options newLevel agg pos
+            |> joinObject options newLevel props agg
+            |> addObjectSuffix options newLevel agg
+
+        and formatString str agg pos =
+            insert "\"" agg pos
+            |> writeString str agg
+            |> insert "\"" agg
+
+        and joinObject options level values agg pos =
+            match values with
+            | [] -> pos
+            | [v] -> formatProperty options level v agg pos
+            | v :: vs ->
+                joinObject options level vs agg pos
+                |> addElementSeparator options level agg
+                |> formatProperty options level v agg
+
+        and joinArray options level values agg pos =
+            match values with
+            | [] -> pos
+            | [v] -> formatJson options level v agg pos
+            | v :: vs ->
+                formatJson options level v agg pos
+                |> addElementSeparator options level agg
+                |> joinArray options level vs agg
+
+        [<RequireQualifiedAccess>]
+        module Json =
+
+            let formatWith options json : string =
+                let result = formatJson options 0u json (Array.zeroCreate (calcTokens json |> int)) 0
+                System.String.Concat result
+
+            let format json : string =
+                formatWith JsonFormattingOptions.Compact json
 
     module Stream =
         open System.IO
         open System.Text
         open System.Threading.Tasks
 
-        let inline append (tw: TextWriter) (s: string) =
-            tw.Write s
-        let inline appendSubstr (tw: TextWriter) (cs: char array) (start: int) (count: int) =
-            tw.Write (cs, start, count)
-        let inline appendChar (tw: TextWriter) (c: char) =
-            tw.Write c
-        let inline appendCharRep (twsb: TextWriter) (c: char) (repeats: int) =
-            tw.Write (c, repeats)
+        type Formatter<'a> =
+            'a -> TextWriter -> TextWriter
 
-        let rec writeString (cs:char array) (index:int) (tw:TextWriter) : unit =
+        type FormatterTask<'a> =
+            'a -> TextWriter -> Task
+
+        module UnitTask =
+            let bind (f : Task -> Task) (t:Task) : Task =
+                t.ContinueWith(System.Func<Task,Task> f).Unwrap()
+
+        let inline append (s: string) (tw: TextWriter) : TextWriter =
+            tw.Write s
+            tw
+
+        let inline appendAsTask (s: string) (tw: TextWriter) : Task =
+            tw.WriteAsync s
+
+        let rec writeString (cs:char array) (index:int) (tw:TextWriter) : TextWriter =
             if index < (Array.length cs - 1) then
                 let nextEscapeIndex = System.Array.FindIndex (cs, index, isEscapeCharPred)
                 if nextEscapeIndex = -1 then
                     tw.Write(cs,index,Array.length cs - index)
+                    tw
                 else if nextEscapeIndex = index then
                     append (escaped cs.[nextEscapeIndex]) tw
-                    writeString cs (nextEscapeIndex + 1)
+                    |> writeString cs (nextEscapeIndex + 1)
                 else
                     tw.Write(cs,index,nextEscapeIndex - index)
                     append (escaped cs.[nextEscapeIndex]) tw
                     |> writeString cs (nextEscapeIndex + 1)
             else tw
+
+        let rec writeStringAsTask (cs:char array) (index:int) (tw:TextWriter) : Task =
+            if index < (Array.length cs - 1) then
+                let nextEscapeIndex = System.Array.FindIndex (cs, index, isEscapeCharPred)
+                if nextEscapeIndex = -1 then
+                    tw.WriteAsync(cs,index,Array.length cs - index)
+                else if nextEscapeIndex = index then
+                    appendAsTask (escaped cs.[nextEscapeIndex]) tw
+                    |> UnitTask.bind (fun _ -> writeStringAsTask cs (nextEscapeIndex + 1) tw)
+                else
+                    tw.WriteAsync(cs,index,nextEscapeIndex - index)
+                    |> UnitTask.bind (fun _ -> appendAsTask (escaped cs.[nextEscapeIndex]) tw)
+                    |> UnitTask.bind (fun _ -> writeStringAsTask cs (nextEscapeIndex + 1) tw)
+            else Task.CompletedTask
 
         let rec join (f: Formatter<'a>) (sep: string) values (tw:TextWriter) : TextWriter =
             match values with
@@ -1111,6 +1526,15 @@ module Formatting =
                 |> append sep
                 |> f v
 
+        let rec joinAsTask (f: FormatterTask<'a>) (sep: string) values (tw:TextWriter) : Task =
+            match values with
+            | [] -> Task.CompletedTask
+            | [v] -> f v tw
+            | v :: vs ->
+                joinAsTask f sep vs tw
+                |> UnitTask.bind (fun _ -> appendAsTask sep tw)
+                |> UnitTask.bind (fun _ -> f v tw)
+
         let rec joinRev (f: Formatter<'a>) (sep: string) values (tw:TextWriter) : TextWriter =
             match values with
             | [] -> tw
@@ -1120,19 +1544,14 @@ module Formatting =
                 |> append sep
                 |> joinRev f sep vs
 
-        let elementSeparator level { ElementSpacing = es } =
-            match es, level with
-            | NoSpaceBetweenElements, _ -> System.String.Empty
-            | SpaceBetweenElements, _ -> " "
-            | NewLineBetweenElements 2, 0 -> "\n"
-            | NewLineBetweenElements 2, 1 -> "\n  "
-            | NewLineBetweenElements 2, 2 -> "\n    "
-            | NewLineBetweenElements 2, 3 -> "\n      "
-            | NewLineBetweenElements 2, 4 -> "\n        "
-            | NewLineBetweenElements 2, 5 -> "\n          "
-            | NewLineBetweenElements 2, 6 -> "\n            "
-            | NewLineBetweenElements 2, l -> "\n" + String.replicate (int l) "  "
-            | NewLineBetweenElements spaces, l -> "\n" + String.replicate (spaces * l |> int) " "
+        let rec joinRevAsTask (f: FormatterTask<'a>) (sep: string) values (tw:TextWriter) : Task =
+            match values with
+            | [] -> Task.CompletedTask
+            | [v] -> f v tw
+            | v :: vs ->
+                f v tw
+                |> UnitTask.bind (fun _ -> appendAsTask sep tw)
+                |> UnitTask.bind (fun _ -> joinRevAsTask f sep vs tw)
 
         let addSeparation { ElementSpacing = es } space tw : TextWriter =
             match es with
@@ -1140,10 +1559,21 @@ module Formatting =
             | SpaceBetweenElements
             | NewLineBetweenElements _ -> append space tw
 
+        let addSeparationAsTask { ElementSpacing = es } space tw : Task =
+            match es with
+            | NoSpaceBetweenElements -> Task.CompletedTask
+            | SpaceBetweenElements
+            | NewLineBetweenElements _ -> appendAsTask space tw
+
         let addPropertyNameSeparator { PropertyNameSpacing = pns } tw : TextWriter =
             match pns with
             | NoSpaceBetweenNameAndValue -> append ":" tw
             | SpaceBetweenNameAndValue -> append ": " tw
+
+        let addPropertyNameSeparatorAsTask { PropertyNameSpacing = pns } tw : Task =
+            match pns with
+            | NoSpaceBetweenNameAndValue -> appendAsTask ":" tw
+            | SpaceBetweenNameAndValue -> appendAsTask ": " tw
 
         let rec formatJson level options x tw =
             match x with
@@ -1156,7 +1586,7 @@ module Formatting =
             | Json.String s -> formatString s tw
 
         and formatArray level options elems tw =
-            let newLevel = level + 1
+            let newLevel = level + 1u
             let prefix = elementSeparator newLevel options
             let separator = "," + prefix
             let suffix = elementSeparator level options
@@ -1183,7 +1613,7 @@ module Formatting =
             |> formatJson level options v
 
         and formatObject level options props tw =
-            let newLevel = level + 1
+            let newLevel = level + 1u
             let prefix = elementSeparator newLevel options
             let separator = "," + prefix
             let suffix = elementSeparator level options
@@ -1198,145 +1628,84 @@ module Formatting =
             |> writeString (str.ToCharArray()) 0
             |> append "\""
 
-        module Async =
-            type FormatterTask<'a> =
-                'a -> TextWriter -> Task
+        let rec formatJsonAsTask level options x tw =
+            match x with
+            | Json.Array elems -> formatArrayAsTask level options elems tw
+            | Json.Bool x -> formatBoolAsTask x tw
+            | Json.Number x -> formatNumberAsTask x tw
+            | Json.Null -> formatNullAsTask tw
+            | Json.Object (UnmappedObject o)
+            | Json.Object (MappedObject (o,_)) -> formatObjectAsTask level options o tw
+            | Json.String s -> formatStringAsTask s tw
 
-            module UnitTask =
-                let bind (f : Task -> Task) (t:Task) : Task =
-                    t.ContinueWith(System.Func<Task,Task> f, TaskContinuationOptions.OnlyOnRanToCompletion).Unwrap()
+        and formatArrayAsTask level options elems tw =
+            let newLevel = level + 1u
+            let prefix = elementSeparator newLevel options
+            let separator = "," + prefix
+            let suffix = elementSeparator level options
+            appendAsTask "[" tw
+            |> UnitTask.bind (fun _ -> addSeparationAsTask options prefix tw)
+            |> UnitTask.bind (fun _ -> joinRevAsTask (formatJsonAsTask newLevel options) separator elems tw)
+            |> UnitTask.bind (fun _ -> addSeparationAsTask options suffix tw)
+            |> UnitTask.bind (fun _ -> appendAsTask "]" tw)
 
-            let inline appendAsTask (tw: TextWriter) (s: string) : Task =
-                tw.WriteAsync s
+        and formatBoolAsTask b tw =
+            let str =
+                if b then "true" else "false"
+            appendAsTask str tw
 
-            let rec writeStringAsTask (cs:char array) (index:int) (tw:TextWriter) : Task =
-                if index < (Array.length cs - 1) then
-                    let nextEscapeIndex = System.Array.FindIndex (cs, index, isEscapeCharPred)
-                    if nextEscapeIndex = -1 then
-                        tw.WriteAsync(cs,index,Array.length cs - index)
-                    else if nextEscapeIndex = index then
-                        appendAsTask (escaped cs.[nextEscapeIndex]) tw
-                        |> UnitTask.bind (fun _ -> writeStringAsTask cs (nextEscapeIndex + 1) tw)
-                    else
-                        tw.WriteAsync(cs,index,nextEscapeIndex - index)
-                        |> UnitTask.bind (fun _ -> appendAsTask (escaped cs.[nextEscapeIndex]) tw)
-                        |> UnitTask.bind (fun _ -> writeStringAsTask cs (nextEscapeIndex + 1) tw)
-                else Task.CompletedTask
+        and formatNumberAsTask n tw =
+            appendAsTask n tw
 
-            let rec joinAsTask (f: FormatterTask<'a>) (sep: string) values (tw:TextWriter) : Task =
-                match values with
-                | [] -> Task.CompletedTask
-                | [v] -> f v tw
-                | v :: vs ->
-                    joinAsTask f sep vs tw
-                    |> UnitTask.bind (fun _ -> appendAsTask sep tw)
-                    |> UnitTask.bind (fun _ -> f v tw)
+        and formatNullAsTask tw =
+            appendAsTask "null" tw
 
-            let rec joinRevAsTask (f: FormatterTask<'a>) (sep: string) values (tw:TextWriter) : Task =
-                match values with
-                | [] -> Task.CompletedTask
-                | [v] -> f v tw
-                | v :: vs ->
-                    f v tw
-                    |> UnitTask.bind (fun _ -> appendAsTask sep tw)
-                    |> UnitTask.bind (fun _ -> joinRevAsTask f sep vs tw)
+        and formatPropertyAsTask level options (k,v) tw =
+            formatStringAsTask k tw
+            |> UnitTask.bind (fun _ -> addPropertyNameSeparatorAsTask options tw)
+            |> UnitTask.bind (fun _ -> formatJsonAsTask level options v tw)
 
-            let addSeparationAsTask { ElementSpacing = es } space tw : Task =
-                match es with
-                | NoSpaceBetweenElements -> Task.CompletedTask
-                | SpaceBetweenElements
-                | NewLineBetweenElements _ -> appendAsTask space tw
+        and formatObjectAsTask level options props tw =
+            let newLevel = level + 1u
+            let prefix = elementSeparator newLevel options
+            let separator = "," + prefix
+            let suffix = elementSeparator level options
+            appendAsTask "{" tw
+            |> UnitTask.bind (fun _ -> addSeparationAsTask options prefix tw)
+            |> UnitTask.bind (fun _ -> joinAsTask (formatPropertyAsTask newLevel options) separator props tw)
+            |> UnitTask.bind (fun _ -> addSeparationAsTask options suffix tw)
+            |> UnitTask.bind (fun _ -> appendAsTask "}" tw)
 
-            let addPropertyNameSeparatorAsTask { PropertyNameSpacing = pns } tw : Task =
-                match pns with
-                | NoSpaceBetweenNameAndValue -> appendAsTask ":" tw
-                | SpaceBetweenNameAndValue -> appendAsTask ": " tw
-
-            let rec formatJsonAsTask level options x tw =
-                match x with
-                | Json.Array elems -> formatArrayAsTask level options elems tw
-                | Json.Bool x -> formatBoolAsTask x tw
-                | Json.Number x -> formatNumberAsTask x tw
-                | Json.Null -> formatNullAsTask tw
-                | Json.Object (UnmappedObject o)
-                | Json.Object (MappedObject (o,_)) -> formatObjectAsTask level options o tw
-                | Json.String s -> formatStringAsTask s tw
-
-            and formatArrayAsTask level options elems tw =
-                let newLevel = level + 1
-                let prefix = elementSeparator newLevel options
-                let separator = "," + prefix
-                let suffix = elementSeparator level options
-                appendAsTask "[" tw
-                |> UnitTask.bind (fun _ -> addSeparationAsTask options prefix tw)
-                |> UnitTask.bind (fun _ -> joinRevAsTask (formatJsonAsTask newLevel options) separator elems tw)
-                |> UnitTask.bind (fun _ -> addSeparationAsTask options suffix tw)
-                |> UnitTask.bind (fun _ -> appendAsTask "]" tw)
-
-            and formatBoolAsTask b tw =
-                let str =
-                    if b then "true" else "false"
-                appendAsTask str tw
-
-            and formatNumberAsTask n tw =
-                appendAsTask n tw
-
-            and formatNullAsTask tw =
-                appendAsTask "null" tw
-
-            and formatPropertyAsTask level options (k,v) tw =
-                formatStringAsTask k tw
-                |> UnitTask.bind (fun _ -> addPropertyNameSeparatorAsTask options tw)
-                |> UnitTask.bind (fun _ -> formatJsonAsTask level options v tw)
-
-            and formatObjectAsTask level options props tw =
-                let newLevel = level + 1
-                let prefix = elementSeparator newLevel options
-                let separator = "," + prefix
-                let suffix = elementSeparator level options
-                appendAsTask "{" tw
-                |> UnitTask.bind (fun _ -> addSeparationAsTask options prefix tw)
-                |> UnitTask.bind (fun _ -> joinAsTask (formatPropertyAsTask newLevel options) separator props tw)
-                |> UnitTask.bind (fun _ -> addSeparationAsTask options suffix tw)
-                |> UnitTask.bind (fun _ -> appendAsTask "}" tw)
-
-            and formatStringAsTask str tw =
-                appendAsTask "\"" tw
-                |> UnitTask.bind (fun _ -> writeStringAsTask (str.ToCharArray()) 0 tw)
-                |> UnitTask.bind (fun _ -> appendAsTask "\"" tw)
+        and formatStringAsTask str tw =
+            appendAsTask "\"" tw
+            |> UnitTask.bind (fun _ -> writeStringAsTask (str.ToCharArray()) 0 tw)
+            |> UnitTask.bind (fun _ -> appendAsTask "\"" tw)
 
         (* Functions *)
 
-    [<RequireQualifiedAccess>]
-    module Json =
+        [<RequireQualifiedAccess>]
+        module Json =
 
-        let formatWith options json =
-            let sb = StringBuilder ()
-            formatJson sb options 0 json
-            sb.ToString()
+            let formatInto (tw:#TextWriter) json : unit =
+                formatJson 0u JsonFormattingOptions.Compact json tw
+                |> ignore
 
-        let format json =
-            formatWith JsonFormattingOptions.Compact json
+            let formatIntoWith options (tw:#TextWriter) json : unit =
+                formatJson 0u options json tw
+                |> ignore
 
-        let formatInto (tw:#TextWriter) json : unit =
-            Stream.formatJson 0 JsonFormattingOptions.Compact json tw
-            |> ignore
+            let formatIntoAsTask (tw:TextWriter) json : Task =
+                formatJsonAsTask 0u JsonFormattingOptions.Compact json tw
 
-        let formatIntoWith options (tw:#TextWriter) json : unit =
-            Stream.formatJson 0 options json tw
-            |> ignore
+            let formatIntoWithAsTask options (tw:#TextWriter) json : Task =
+                formatJsonAsTask 0u options json tw
 
-        let formatIntoAsTask (tw:TextWriter) json : Task =
-            Stream.Async.formatJsonAsTask 0 JsonFormattingOptions.Compact json tw
+            let formatIntoAsAsync (tw:#TextWriter) json : Async<unit> =
+                async.Delay(fun () -> (formatIntoAsTask tw json).ContinueWith(fun _ -> ()) |> Async.AwaitTask)
 
-        let formatIntoWithAsTask options (tw:#TextWriter) json : Task =
-            Stream.Async.formatJsonAsTask 0 options json tw
+            let formatIntoWithAsAsync options (tw:#TextWriter) json : Async<unit> =
+                async.Delay(fun () -> (formatIntoWithAsTask options tw json).ContinueWith(fun _ -> ()) |> Async.AwaitTask)
 
-        let formatIntoAsAsync (tw:#TextWriter) json : Async<unit> =
-            async.Delay(fun () -> (Stream.Async.formatIntoAsTask tw json) |> Async.AwaitTask)
-
-        let formatIntoWithAsAsync options (tw:#TextWriter) json : Async<unit> =
-            async.Delay(fun () -> (Stream.Async.formatIntoWithAsTask options tw json) |> Async.AwaitTask)
 
 //     (* Functions *)
 

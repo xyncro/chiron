@@ -6,6 +6,7 @@ open System.Reflection
 open BenchmarkDotNet.Configs
 open BenchmarkDotNet.Analysers
 open BenchmarkDotNet.Diagnosers
+open BenchmarkDotNet.Jobs
 //open BenchmarkDotNet.Diagnostics.Windows
 open BenchmarkDotNet.Validators
 
@@ -14,6 +15,7 @@ type Dummy = Dummy
 type CoreConfig() =
     inherit ManualConfig()
     do
+        base.Add(Job.MediumRun)
         base.Add(EnvironmentAnalyser.Default)
         base.Add(MemoryDiagnoser.Default)
         base.Add(BaselineValidator.FailOnError)

@@ -17,6 +17,9 @@ let main argv =
     // let switcher = BenchmarkSwitcher thisAssembly
     // let _ = switcher.Run argv
     //let x = BenchmarkRunner.Run<Chiron.Benchmarks.ParseSmallPayload>(BenchmarkDotNet.Configs.DefaultConfig.Instance.KeepBenchmarkFiles)
-    let _ = BenchmarkRunner.Run<FormatTest>()
-    let _ = BenchmarkRunner.Run<ParseTest>()
+    let _ = BenchmarkRunner.Run<Decode>()
+    let _ = BenchmarkRunner.Run<Encode>()
+    // let _ = BenchmarkRunner.Run<ChironB.WriteString>()
+    // let _ = BenchmarkRunner.Run<ParseTest>()
+    //let _ = BenchmarkRunner.Run<SerializeTest>()
     0
