@@ -1,4 +1,4 @@
-module Chiron
+module Chiron.Obsolete
 
 open System
 open System.Globalization
