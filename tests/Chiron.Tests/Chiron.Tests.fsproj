@@ -6,8 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Chiron.Tests.fs" />
-    <Compile Include="Chiron.Testing.fs" />
-    <Compile Include="Chiron.Properties.fs" />
+    <!--<Compile Include="Chiron.Testing.fs" />
+    <Compile Include="Chiron.Properties.fs" />-->
     <Compile Include="Program.fs" />
     <EmbeddedResource Include="**\*.resx" />
   </ItemGroup>
