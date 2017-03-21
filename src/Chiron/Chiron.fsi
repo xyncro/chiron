@@ -367,7 +367,7 @@ module Builders =
         // member Bind: aR: ObjectReader<'a> * a2bR: ('a -> JsonReader<'b>) -> ObjectReader<'b>
         member Zero: unit -> ObjectReader<unit>
         member Combine: aR: ObjectReader<'a> * bR: ObjectReader<'b> -> ObjectReader<'b>
-        // member Delay: u2bR: (unit -> ObjectReader<'b>) -> ObjectReader<'b>
+        member Delay: u2bR: (unit -> ObjectReader<'b>) -> ObjectReader<'b>
         member Run: aM: ObjectReader<'a> -> JsonReader<'a>
 
     // type JsonWriterBuilder =

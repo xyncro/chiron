@@ -6,9 +6,9 @@
   </PropertyGroup>
   <Import Project="..\..\nuget.props" />
   <ItemGroup>
-    <Compile Include="Chiron.fsi" />
+    <!--Compile Include="Chiron.fsi" /-->
     <Compile Include="Chiron.fs" />
-    <!--Compile Include="Chiron.New.fs" /-->
+    <!--Compile Include="Chiron.Old.fs" /-->
     <EmbeddedResource Include="**\*.resx" />
   </ItemGroup>
   <ItemGroup>
