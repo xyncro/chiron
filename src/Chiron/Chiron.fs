@@ -48,7 +48,13 @@ type JsonFailure =
     | DeserializationError of targetType: System.Type * err: string
     | ParserFailure of parserFail: string
 
+#if STRUCT_RESULT
 type JsonResult<'a> = Result<'a,JsonFailure list>
+#else
+type JsonResult<'a> =
+    | Ok of 'a
+    | Error of JsonFailure list
+#endif
 type Json<'a> = Json -> JsonResult<'a> * Json
 type JsonReader<'a> = Json -> JsonResult<'a>
 type ObjectReader<'a> = JsonObject -> JsonResult<'a>
@@ -121,10 +127,22 @@ module JsonResult =
     let typeMismatch<'a> (expected: JsonMemberType) (actual: Json) : JsonResult<'a> =
         Error [TypeMismatch (expected, JsonMemberType.ofJson actual)]
 
-    let bind (a2bR: 'a -> JsonResult<'b>) (aR : JsonResult<'a>) : JsonResult<'b> = Result.bind a2bR aR
-    let map (a2b: 'a -> 'b) (aR : JsonResult<'a>) : JsonResult<'b> = Result.map a2b aR
-    let mapError (jfs2e: JsonFailure list -> 'e) (aR : JsonResult<'a>) : Result<'a,'e> = Result.mapError jfs2e aR
-    let mapErrors (jf2e: JsonFailure -> 'e) (aR : JsonResult<'a>) : Result<'a,'e list> = Result.mapError (List.map jf2e) aR
+    let bind (a2bR: 'a -> JsonResult<'b>) (aR : JsonResult<'a>) : JsonResult<'b> =
+        match aR with
+        | Ok a -> a2bR a
+        | Error x -> Error x
+    let map (a2b: 'a -> 'b) (aR : JsonResult<'a>) : JsonResult<'b> =
+        match aR with
+        | Ok a -> Ok (a2b a)
+        | Error x -> Error x
+    let mapError (jfs2e: JsonFailure list -> 'e) (aR : JsonResult<'a>) : Result<'a,'e> =
+        match aR with
+        | Ok a -> Result.Ok a
+        | Error jfs -> Result.Error (jfs2e jfs)
+    let mapErrors (jf2e: JsonFailure -> 'e) (aR : JsonResult<'a>) : Result<'a,'e list> =
+        match aR with
+        | Ok a -> Result.Ok a
+        | Error jfs -> Result.Error (List.map jf2e jfs)
 
     let apply (aR: JsonResult<'a>) (a2Rb: JsonResult<'a -> 'b>) : JsonResult<'b> =
         match a2Rb, aR with
@@ -454,7 +472,7 @@ module JsonObject =
     let readWith (decode: JsonReader<'a>) (k: string) : ObjectReader<'a> =
         let binder = JsonResult.withPropertyTag k decode
         fun jsonObject ->
-        find k jsonObject
+            find k jsonObject
             |> JsonResult.bind binder
 
     let readOptionalWith (decode: JsonReader<'a>) (k: string) : ObjectReader<'a option> =
@@ -462,7 +480,7 @@ module JsonObject =
             JsonResult.withPropertyTag k decode
         fun jsonObject ->
             let aRO =
-        tryFind k jsonObject
+                tryFind k jsonObject
                 |> Option.map mapper
             match aRO with
             | Some (Ok a) -> Ok (Some a)
@@ -1050,8 +1068,8 @@ module Serialization =
                 list >-> Array.ofList
 
             let arrayFolder x (arr: 'a array, idx) =
-                    arr.[idx] <- x
-                    (arr, idx - 1)
+                arr.[idx] <- x
+                (arr, idx - 1)
 
             let fstλ<'a,'b> : ('a * 'b) -> 'a = (do ()); fun (a, _) -> a
             let fstλstruct<'a,'b> : struct ('a * 'b) -> 'a = (do ()); fun (struct (a, _)) -> a
@@ -1105,12 +1123,12 @@ module Serialization =
                     | Ok s ->
                         let kR = parseKey kStr
                         match kR with
-                        | Ok k ->
+                        | Result.Ok k ->
                             let vR = JsonResult.withPropertyTag kStr decode json
                             match vR with
                             | Ok v -> Ok (Map.add k v s)
                             | Error e -> Error e
-                        | Error e -> Error [deserKeyErr<'k> e]
+                        | Result.Error e -> Error [deserKeyErr<'k> e]
                     | Error e -> Error e) (Ok Map.empty) kvps
 
             let mapInner (parseKey : string -> Result<'k,string>) (decode: JsonReader<'v>) (kvps: (string * Json) list): JsonResult<Map<'k,'v>> =
@@ -1118,31 +1136,31 @@ module Serialization =
                     let kR = parseKey k
                     let vR = JsonResult.withPropertyTag k decode json
                     match sR, kR, vR with
-                    | Ok s, Ok k, Ok v -> Ok (Map.add k v s)
-                    | Error errs, Error errK, Error [errV] -> Error (errV :: (deserKeyErr<'k> errK) :: errs)
-                    | Error errs, Error err, Ok _ -> Error (deserKeyErr<'k> err :: errs)
-                    | Error errs, Ok _, Error [err] -> Error (err :: errs)
-                    | Error errs, Error errK, Error errV -> Error (errV @ (deserKeyErr<'k> errK :: errs))
+                    | Ok s, Result.Ok k, Ok v -> Ok (Map.add k v s)
+                    | Error errs, Result.Error errK, Error [errV] -> Error (errV :: (deserKeyErr<'k> errK) :: errs)
+                    | Error errs, Result.Error err, Ok _ -> Error (deserKeyErr<'k> err :: errs)
+                    | Error errs, Result.Ok _, Error [err] -> Error (err :: errs)
+                    | Error errs, Result.Error errK, Error errV -> Error (errV @ (deserKeyErr<'k> errK :: errs))
                     | Error errs, _, _
                     | _, _, Error errs -> Error errs
-                    | _, Error err, _ -> Error [deserKeyErr<'k> err]) (Ok Map.empty) kvps
+                    | _, Result.Error err, _ -> Error [deserKeyErr<'k> err]) (Ok Map.empty) kvps
 
             let mapWithQuick (decode: JsonReader<'a>) : JsonReader<Map<string,'a>> =
                 let binder =
                     fun jObj ->
                         JsonObject.toPropertyList jObj
-                        |> mapInnerQuick Ok decode
+                        |> mapInnerQuick Result.Ok decode
                 fun json ->
-                jsonObject json
+                    jsonObject json
                     |> JsonResult.bind binder
 
             let mapWith (decode: JsonReader<'a>) : JsonReader<Map<string,'a>> =
                 let binder =
                     fun jObj ->
                         JsonObject.toPropertyList jObj
-                        |> mapInner Ok decode
+                        |> mapInner Result.Ok decode
                 fun json ->
-                jsonObject json
+                    jsonObject json
                     |> JsonResult.bind binder
 
             let mapWithCustomKeyQuick (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) : JsonReader<Map<'a,'b>> =
@@ -1151,7 +1169,7 @@ module Serialization =
                         JsonObject.toPropertyList jObj
                         |> mapInnerQuick parseKey decode
                 fun json ->
-                jsonObject json
+                    jsonObject json
                     |> JsonResult.bind binder
 
             let mapWithCustomKey (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) : JsonReader<Map<'a,'b>> =
@@ -1160,15 +1178,15 @@ module Serialization =
                         JsonObject.toPropertyList jObj
                         |> mapInner parseKey decode
                 fun json ->
-                jsonObject json
+                    jsonObject json
                     |> JsonResult.bind binder
 
             let listToTuple2 : Json list -> JsonResult<Json * Json>=
                 do ()
                 function
-                    | [a;b] -> Ok (a, b)
-                    | [_] -> JsonResult.deserializationError "2-Tuple has only one element"
-                    | [] -> JsonResult.deserializationError "2-Tuple has zero elements"
+                | [a;b] -> Ok (a, b)
+                | [_] -> JsonResult.deserializationError "2-Tuple has only one element"
+                | [] -> JsonResult.deserializationError "2-Tuple has zero elements"
                 | _ -> JsonResult.deserializationError "2-Tuple has too many elements"
 
             let tuple2 : JsonReader<Json * Json> =
@@ -1200,8 +1218,8 @@ module Serialization =
             let listToTuple3 =
                 do ()
                 function
-                    | [a;b;c] -> Ok (a, b, c)
-                    | x when List.length x > 3 -> JsonResult.deserializationError "3-Tuple has excess elements"
+                | [a;b;c] -> Ok (a, b, c)
+                | x when List.length x > 3 -> JsonResult.deserializationError "3-Tuple has excess elements"
                 | _ -> JsonResult.deserializationError "3-Tuple has insufficient elements"
 
             let tuple3 =
@@ -1235,8 +1253,8 @@ module Serialization =
             let listToTuple4 =
                 do ()
                 function
-                    | [a;b;c;d] -> Ok (a, b, c, d)
-                    | x when List.length x > 4 -> JsonResult.deserializationError "4-Tuple has excess elements"
+                | [a;b;c;d] -> Ok (a, b, c, d)
+                | x when List.length x > 4 -> JsonResult.deserializationError "4-Tuple has excess elements"
                 | _ -> JsonResult.deserializationError "4-Tuple has insufficient elements"
 
             let tuple4 =
@@ -1273,8 +1291,8 @@ module Serialization =
             let listToTuple5 =
                 do ()
                 function
-                    | [a;b;c;d;e] -> Ok (a, b, c, d, e)
-                    | x when List.length x > 5 -> JsonResult.deserializationError "5-Tuple has excess elements"
+                | [a;b;c;d;e] -> Ok (a, b, c, d, e)
+                | x when List.length x > 5 -> JsonResult.deserializationError "5-Tuple has excess elements"
                 | _ -> JsonResult.deserializationError "5-Tuple has insufficient elements"
 
             let tuple5 =
@@ -1314,8 +1332,8 @@ module Serialization =
             let listToTuple6 =
                 do ()
                 function
-                    | [a;b;c;d;e;f] -> Ok (a, b, c, d, e, f)
-                    | x when List.length x > 6 -> JsonResult.deserializationError "6-Tuple has excess elements"
+                | [a;b;c;d;e;f] -> Ok (a, b, c, d, e, f)
+                | x when List.length x > 6 -> JsonResult.deserializationError "6-Tuple has excess elements"
                 | _ -> JsonResult.deserializationError "6-Tuple has insufficient elements"
 
             let tuple6 =
@@ -1358,8 +1376,8 @@ module Serialization =
             let listToTuple7 =
                 do ()
                 function
-                    | [a;b;c;d;e;f;g] -> Ok (a, b, c, d, e, f, g)
-                    | x when List.length x > 7 -> JsonResult.deserializationError "7-Tuple has excess elements"
+                | [a;b;c;d;e;f;g] -> Ok (a, b, c, d, e, f, g)
+                | x when List.length x > 7 -> JsonResult.deserializationError "7-Tuple has excess elements"
                 | _ -> JsonResult.deserializationError "7-Tuple has insufficient elements"
 
             let tuple7 =
@@ -1869,12 +1887,12 @@ module Patterns =
         Optics.get (Optics.Json.Property_ key) json
         |> JsonResult.bind r
         |> function
-            | Result.Ok x -> Some x
+            | JsonResult.Ok x -> Some x
             | _ -> None
 
     let inline (|Property|_|) (key: string) (json: Json): 'a option =
         Optics.get (Optics.Json.Property_ key) json
         |> JsonResult.bind Inference.Json.decode
         |> function
-            | Result.Ok x -> Some x
+            | JsonResult.Ok x -> Some x
             | _ -> None
