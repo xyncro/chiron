@@ -107,7 +107,7 @@ module Json =
             ifFullyShrunkThen (System.Decimal.Parse n) shrinkToBool Json.Encode.decimal
 
         | Number n when String.length n > 18 ->
-            ifFullyShrunkThen (System.Numerics.BigInteger.Parse n) shrinkToBool Json.Encode.bigint
+            Seq.ofList [ Json.Encode.number (n.Substring(1)); Json.Encode.number (n.Substring(0, String.length n - 1)) ]
 
         | Number n ->
             ifFullyShrunkThen (System.Int64.Parse n) shrinkToBool Json.Encode.int64
