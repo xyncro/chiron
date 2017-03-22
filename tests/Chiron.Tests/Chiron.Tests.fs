@@ -42,8 +42,8 @@ module Constants =
             <*> JsonObject.readWith D.int "3"
 
     type Testing with
-        static member Encode (x: Testing, jObj) =
-            Testing.encode x jObj
+        static member Encode (x: Testing) =
+            Testing.encode x
         static member Decode (jObj) =
             Testing.decode jObj
 
@@ -257,7 +257,7 @@ module Special =
 
     [<Fact>]
     let ``Decoding preserves order of object elements`` () =
-        test <@ testJson1 |> Json.parse |> Result.bind (D.jsonObjectWith Testing.decode) = Ok testObject @>
+        test <@ testJson1 |> Json.parse |> JsonResult.bind (D.jsonObjectWith Testing.decode) = Ok testObject @>
 
     [<Fact>]
     let ``Formatting preserves order of object elements`` () =
@@ -273,7 +273,7 @@ module Special =
 
     [<Fact>]
     let ``Decoding preserves order of array elements`` () =
-        test <@ """["1","2","3"]""" |> Json.parse |> Result.bind (D.listWith D.string) = Ok ["1"; "2"; "3"] @>
+        test <@ """["1","2","3"]""" |> Json.parse |> JsonResult.bind (D.listWith D.string) = Ok ["1"; "2"; "3"] @>
 
     [<Fact>]
     let ``Formatting preserves order of array elements`` () =
@@ -287,129 +287,129 @@ module Inference =
     open Chiron.Inference
 
     [<Fact>]
-    let ``Infered round-trip on true returns expected value`` () =
+    let ``Inferred round-trip on true returns expected value`` () =
         Json.decode (Json.encode true) =! Ok true
 
     [<Fact>]
-    let ``Infered round-trip on false returns expected value`` () =
+    let ``Inferred round-trip on false returns expected value`` () =
         Json.decode (Json.encode false) =! Ok false
 
     let fortytwo = Json.encode 42
 
     [<Fact>]
-    let ``Infered round-trip to decimal returns expected value`` () =
+    let ``Inferred round-trip to decimal returns expected value`` () =
         Json.decode fortytwo =! Ok 42M
 
     [<Fact>]
-    let ``Infered round-trip to float returns expected value`` () =
+    let ``Inferred round-trip to float returns expected value`` () =
         Json.decode fortytwo =! Ok 42.0
 
     [<Fact>]
-    let ``Infered round-trip to int returns expected value`` () =
+    let ``Inferred round-trip to int returns expected value`` () =
         Json.decode fortytwo =! Ok 42
 
     [<Fact>]
-    let ``Infered round-trip to int16 returns expected value`` () =
+    let ``Inferred round-trip to int16 returns expected value`` () =
         Json.decode fortytwo =! Ok 42s
 
     [<Fact>]
-    let ``Infered round-trip to int64 returns expected value`` () =
+    let ``Inferred round-trip to int64 returns expected value`` () =
         Json.decode fortytwo =! Ok 42L
 
     [<Fact>]
-    let ``Infered round-trip to single returns expected value`` () =
+    let ``Inferred round-trip to single returns expected value`` () =
         Json.decode fortytwo =! Ok 42.0f
 
     [<Fact>]
-    let ``Infered round-trip to uint16 returns expected value`` () =
+    let ``Inferred round-trip to uint16 returns expected value`` () =
         Json.decode fortytwo =! Ok 42us
 
     [<Fact>]
-    let ``Infered round-trip to uint32 returns expected value`` () =
+    let ``Inferred round-trip to uint32 returns expected value`` () =
         Json.decode fortytwo =! Ok 42u
 
     [<Fact>]
-    let ``Infered round-trip to uint64 returns expected value`` () =
+    let ``Inferred round-trip to uint64 returns expected value`` () =
         Json.decode fortytwo =! Ok 42UL
 
     [<Fact>]
-    let ``Infered round-trip to uint64 on bad value returns expected value`` () =
+    let ``Inferred round-trip to uint64 on bad value returns expected value`` () =
         Json.decode (Json.encode -2) =! JsonResult.deserializationError<uint64> "Value was either too large or too small for a UInt64."
 
     [<Fact>]
-    let ``Infered round-trip to string returns expected value`` () =
+    let ``Inferred round-trip to string returns expected value`` () =
         Json.decode (Json.encode "hello") =! Ok "hello"
 
     [<Fact>]
-    let ``Infered round-trip to datetime returns expected value`` () =
+    let ``Inferred round-trip to datetime returns expected value`` () =
         Json.decode (Json.encode "Fri, 20 Feb 2015 14:36:21 GMT") =! Ok (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc))
 
     [<Fact>]
-    let ``Infered round-trip to datetimeoffset returns expected value`` () =
+    let ``Inferred round-trip to datetimeoffset returns expected value`` () =
         Json.decode (Json.encode "2015-04-15T13:45:55Z") =! Ok (DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero))
 
     [<Fact>]
-    let ``Infered round-trip to guid returns expected value`` () =
+    let ``Inferred round-trip to guid returns expected value`` () =
         Json.decode (Json.encode "0123456789ABCDEFFEDCBA9876543210") =! Ok (Guid "0123456789ABCDEFFEDCBA9876543210")
 
     [<Fact>]
-    let ``Infered round-trip on array returns correct values`` () =
+    let ``Inferred round-trip on array returns correct values`` () =
         Json.decode (Json.encode [ "hello"; "world" ]) =! Ok [| "hello"; "world" |]
 
     [<Fact>]
-    let ``Infered round-trip on list returns correct values`` () =
+    let ``Inferred round-trip on list returns correct values`` () =
         Json.decode (Json.encode [ "hello"; "world" ]) =! Ok [ "hello"; "world" ]
 
     [<Fact>]
-    let ``Infered round-trip on None returns correct values`` () =
+    let ``Inferred round-trip on None returns correct values`` () =
         let none : string option = None
         Json.decode (Json.encode none) =! Ok none
 
     [<Fact>]
-    let ``Infered round-trip on None with different types returns correct values`` () =
+    let ``Inferred round-trip on None with different types returns correct values`` () =
         Json.decode (Json.encode (None: int option)) =! Ok (None: string option)
 
     [<Fact>]
-    let ``Infered round-trip on map returns correct values`` () =
+    let ``Inferred round-trip on map returns correct values`` () =
         Json.decode (E.propertyList [ "one", E.decimal 1M; "two", E.decimal 2M ]) =! Ok (Map.ofList [ "one", 1; "two", 2 ])
 
     [<Fact>]
-    let ``Infered round-trip on set returns correct values`` () =
+    let ``Inferred round-trip on set returns correct values`` () =
         Json.decode (Json.encode [ "one"; "two" ]) =! Ok (set [ "one"; "two" ])
 
     [<Fact>]
-    let ``Infered round-trip on Some returns correct values`` () =
+    let ``Inferred round-trip on Some returns correct values`` () =
         Json.decode (Json.encode (Some "hello")) =! Ok (Some "hello")
 
     [<Fact>]
-    let ``Infered round-trip on Some returns correct values (no wrapper)`` () =
+    let ``Inferred round-trip on Some returns correct values (no wrapper)`` () =
         Json.decode (Json.encode "hello") =! Ok (Some "hello")
 
     [<Fact>]
-    let ``Infered round-trip on 2-Tuple returns correct values`` () =
+    let ``Inferred round-trip on 2-Tuple returns correct values`` () =
         Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M ]) =! Ok ("hello", 42)
 
     [<Fact>]
-    let ``Infered round-trip on 3-Tuple returns correct values`` () =
+    let ``Inferred round-trip on 3-Tuple returns correct values`` () =
         Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true ]) =! Ok ("hello", 42, true)
 
     [<Fact>]
-    let ``Infered round-trip on 4-Tuple returns correct values`` () =
+    let ``Inferred round-trip on 4-Tuple returns correct values`` () =
         Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option) ])
             =! Ok ("hello", 42, true, (None: string option))
 
     [<Fact>]
-    let ``Infered round-trip on 5-Tuple returns correct values`` () =
+    let ``Inferred round-trip on 5-Tuple returns correct values`` () =
         Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option); Json.encode -4 ])
             =! Ok ("hello", 42, true, (None: string option), -4L)
 
     [<Fact>]
-    let ``Infered round-trip on 6-Tuple returns correct values`` () =
+    let ``Inferred round-trip on 6-Tuple returns correct values`` () =
         Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option); Json.encode -4; Json.encode "Test" ])
             =! Ok ("hello", 42, true, (None: string option), -4L, "Test")
 
     [<Fact>]
-    let ``Infered round-trip on 7-Tuple returns correct values`` () =
+    let ``Inferred round-trip on 7-Tuple returns correct values`` () =
         Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option); Json.encode -4; Json.encode "Test"; Json.encode -0.0 ])
             =! Ok ("hello", 42, true, (None: string option), -4L, "Test", 0M)
 
@@ -426,32 +426,34 @@ module WithTestRecord =
           Json: Json }
 
     module Test =
-        let mk = (do ()); fun s n v j -> { String = s; Number = n; Values = v; Json = j }
-        let mk2 s n v j = { String = s; Number = n; Values = v; Json = j }
-        let encode x jObj =
-            jObj
-            |> JsonObject.write "string" x.String
-            |> JsonObject.writeOptional "number" x.Number
-            |> JsonObject.writeWith (E.listWith E.bool) "values" x.Values
-            |> JsonObject.writeWith E.json "json" x.Json
+        let encode =
+            let boolList = E.listWith E.bool
+            fun x jObj ->
+                jObj
+                |> JsonObject.write "string" x.String
+                |> JsonObject.writeOptional "number" x.Number
+                |> JsonObject.writeWith boolList "values" x.Values
+                |> JsonObject.writeWith E.json "json" x.Json
+        let toJson x =
+            JsonObject.buildWith encode x
         let decode =
-            mk
+            (fun s n v j -> { String = s; Number = n; Values = v; Json = j })
             <!> JsonObject.read "string"
-            <*> JsonObject.readOptional "number"
+            <*> JsonObject.readOptionalWith D.int "number"
             <*> JsonObject.readWith (D.listWith D.bool) "values"
             <*> JsonObject.readWith D.json "json"
-        let decode2 =
-            mk2
-            <!> JsonObject.read "string"
-            <*> JsonObject.readOptional "number"
-            <*> JsonObject.readWith (D.listWith D.bool) "values"
-            <*> JsonObject.readWith D.json "json"
+        let fromJson =
+            ObjectReader.toJsonReader decode
 
     type Test with
         static member Encode (x: Test, jObj: JsonObject) =
             Test.encode x jObj
+        static member ToJson (x: Test) =
+            Test.toJson x
         static member Decode (jObj: JsonObject) =
             Test.decode jObj
+        static member FromJson (_: Test, json: Json) =
+            Test.fromJson json
 
     let testJson =
         E.propertyList
@@ -483,7 +485,7 @@ module WithTestRecord =
           Values = [ ]
           Json = E.propertyList [ "hello", E.string "world" ] }
 
-    [<Fact(Skip="To be fixed")>]
+    [<Fact(Skip="To be considered")>]
     let ``Json.decodeObject with null option value`` () =
         Json.decodeObject testJsonWithNullOption =! Ok testInstanceWithNoneOption
 
@@ -535,7 +537,7 @@ module WithTestUnion =
             |> JsonObject.write "twoble" b
         let fromJsonOne json =
             D.string json
-            |> Result.map One
+            |> JsonResult.map One
         let decodeTwo =
             mkTwo
             <!> JsonObject.read "two"

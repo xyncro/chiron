@@ -15,7 +15,7 @@ module D = Json.Decode
 let doRoundTripTestWith (encode: JsonWriter<'a>) (decode: JsonReader<'a>) (v : 'a) =
     test <@ v |> encode |> Json.format |> Json.parse |> JsonResult.bind decode = Ok v @>
 
-let inline doRoundTripTest (v : 'a) : _ when (^a or Inference.Internal.ChironDefaults) : (static member ToJson: ^a -> Json) and (^a or Inference.Internal.ChironDefaults) : (static member FromJson: ^a * Json -> JsonResult<'a>) =
+let inline doRoundTripTest (v : 'a) : _ when (^a or Inference.Internal.ChironDefaults) : (static member ToJson: ^a -> Json) and (^a or Inference.Internal.ChironDefaults) : (static member FromJson: ^a -> JsonReader<'a>) =
     let (encode : JsonWriter<'a>),(decode : JsonReader<'a>) = Inference.Json.encode, Inference.Json.decode
     doRoundTripTestWith encode decode v
 
@@ -85,7 +85,7 @@ let ``UTC DateTime can be round-tripped`` (UtcDateTime v) =
 
 [<Property>]
 let ``Deserialized DateTimes are UTC`` (v : System.DateTime) =
-    test <@ v |> E.dateTime |> Json.format |> Json.parse |> JsonResult.bind D.dateTime |> Result.map (fun (dt : System.DateTime) -> dt.Kind) = Ok System.DateTimeKind.Utc @>
+    test <@ v |> E.dateTime |> Json.format |> Json.parse |> JsonResult.bind D.dateTime |> JsonResult.map (fun (dt : System.DateTime) -> dt.Kind) = Ok System.DateTimeKind.Utc @>
 
 [<Property>]
 let ``DateTimeOffset can be round-tripped`` (v : System.DateTimeOffset) =
@@ -126,7 +126,7 @@ module Json =
             ObjectReader.toJsonReader testRecord
 
 type TestRecord with
-    static member FromJson (_: TestRecord, json: Json) = Json.Decode.testRecordFromJson json
+    static member FromJson (_: TestRecord) = Json.Decode.testRecordFromJson
     static member ToJson (x: TestRecord) = Json.Encode.testRecordToJson x
 
 [<Property>]
@@ -156,8 +156,8 @@ type TestUnion =
             | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> Inference.JsonObject.write "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
         JsonObject.buildWith f x
 
-    static member FromJson (_ : TestUnion, json: Json) =
-        match json with
+    static member FromJson (_ : TestUnion) =
+        function
         | Property "CaseWithTwoArgs" (a1, a2) as json -> Ok (CaseWithTwoArgs (a1, a2))
         | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> Ok (CaseWithThreeArgs (a1, a2, a3))
         | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> Ok (CaseWithFourArgs (a1, a2, a3, a4))
