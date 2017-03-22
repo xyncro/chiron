@@ -10,6 +10,7 @@
     <!--<Compile Include="ParsingAndFormatting.fs" />
     <Compile Include="WriteString.fs" />-->
     <Compile Include="Encode.fs" />
+    <Compile Include="Decode.fs" />
     <Compile Include="Main.fs" />
     <EmbeddedResource Include="**\*.resx" />
     <EmbeddedResource Include="**\*.json" />

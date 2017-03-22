@@ -4,91 +4,179 @@ open Chiron
 open BenchmarkDotNet.Attributes
 open System.Text
 
-module Examples =
+module DecodeExamples =
+    module E = Chiron.Serialization.Json.Encode
+    let testJson =
+        E.propertyList
+            [ "2", E.bool true
+              "3", E.int 42 ]
     module Inline =
         module Explicit =
-            module E = Chiron.Serialization.Json.Encode
-            module JO = Chiron.JsonObject
-            type Testing =
-                { one: int option
-                  two: bool
-                  three: int }
-                static member Encode (x: Testing, jObj: JsonObject): JsonObject =
-                    jObj
-                    |> JO.writeOptionalWith E.int "1" x.one
-                    |> JO.writeWith E.bool "2" x.two
-                    |> JO.writeWith E.int "3" x.three
-            let testObject = { one = None; two = true; three = 42 }
+            module ComputationExpression =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                    static member FromJson (_:Testing): JsonReader<Testing> = jsonReader {
+                        let! o = JO.readOptionalWith D.int "1"
+                        let! t = JO.readWith D.bool "2"
+                        let! r = JO.readWith D.int "3"
+                        return { one = o; two = t; three = r }
+                    }
+
+            module Operators =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                open Chiron.ObjectReader.Operators
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                    static member Decode (jObj: JsonObject): JsonResult<Testing> =
+                        ((fun o t r -> { one = o; two = t; three = r })
+                        <!> JO.readOptionalWith D.int "1"
+                        <*> JO.readWith D.bool "2"
+                        <*> JO.readWith D.int "3") jObj
+                    static member FromJson (_: Testing): JsonReader<Testing> =
+                        let decode jObj = Testing.Decode(jObj)
+                        ObjectReader.toJsonReader decode
 
         module Inferred =
-            module E = Chiron.Serialization.Json.Encode
-            module JO = Chiron.JsonObject
-            module JO = Chiron.Inference.JsonObject
-            type Testing =
-                { one: int option
-                  two: bool
-                  three: int }
-                static member Encode (x: Testing, jObj: JsonObject): JsonObject =
-                    jObj
-                    |> JO.writeOptional "1" x.one
-                    |> JO.write "2" x.two
-                    |> JO.write "3" x.three
-                static member ToJson (x: Testing): Json =
-                    Testing.Encode (x, JsonObject.empty)
-                    |> Chiron.Inference.Json.encode
-            let testObject = { one = None; two = true; three = 42 }
+            module ComputationExpression =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                module JO = Chiron.Inference.JsonObject
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                    static member FromJson (_:Testing): JsonReader<Testing> = jsonReader {
+                        let! o = JO.readOptional "1"
+                        let! t = JO.read "2"
+                        let! r = JO.read "3"
+                        return { one = o; two = t; three = r }
+                    }
+
+            module Operators =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                module JO = Chiron.Inference.JsonObject
+                open Chiron.ObjectReader.Operators
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                    static member Decode (jObj: JsonObject): JsonResult<Testing> =
+                        ((fun o t r -> { one = o; two = t; three = r })
+                        <!> JO.readOptional "1"
+                        <*> JO.read "2"
+                        <*> JO.read "3") jObj
+                    static member FromJson (_: Testing): JsonReader<Testing> =
+                        let decode jObj = Testing.Decode(jObj)
+                        ObjectReader.toJsonReader decode
 
     module InModule =
         module Explicit =
-            module E = Chiron.Serialization.Json.Encode
-            module JO = Chiron.JsonObject
-            type Testing =
-                { one: int option
-                  two: bool
-                  three: int }
-            module Testing =
-                let encode x jObj =
-                    jObj
-                    |> JO.writeOptionalWith E.int "1" x.one
-                    |> JO.writeWith E.bool "2" x.two
-                    |> JO.writeWith E.int "3" x.three
-            type Testing with
-                static member Encode (x: Testing, jObj: JsonObject): JsonObject =
-                    Testing.encode x jObj
-            let testObject = { one = None; two = true; three = 42 }
+            module ComputationExpression =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                module Testing =
+                    let toJson = jsonReader {
+                        let! o = JO.readOptionalWith D.int "1"
+                        let! t = JO.readWith D.bool "2"
+                        let! r = JO.readWith D.int "3"
+                        return { one = o; two = t; three = r }
+                    }
+                type Testing with
+                    static member FromJson (_: Testing): JsonReader<Testing> =
+                        Testing.toJson
+
+            module Operators =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                open Chiron.ObjectReader.Operators
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                module Testing =
+                    let decode =
+                        (fun o t r -> { one = o; two = t; three = r })
+                        <!> JO.readOptionalWith D.int "1"
+                        <*> JO.readWith D.bool "2"
+                        <*> JO.readWith D.int "3"
+                    let toJson =
+                        ObjectReader.toJsonReader decode
+                type Testing with
+                    static member FromJson (_: Testing): JsonReader<Testing> =
+                        Testing.toJson
 
         module Inferred =
-            module E = Chiron.Serialization.Json.Encode
-            module JO = Chiron.JsonObject
-            module JO = Chiron.Inference.JsonObject
-            type Testing =
-                { one: int option
-                  two: bool
-                  three: int }
-            module Testing =
-                let encode x jObj =
-                    jObj
-                    |> JO.writeOptional "1" x.one
-                    |> JO.write "2" x.two
-                    |> JO.write "3" x.three
-            type Testing with
-                static member ToJson (x: Testing): Json =
-                    JsonObject.buildWith Testing.encode x
-            let testObject = { one = None; two = true; three = 42 }
+            module ComputationExpression =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                module JO = Chiron.Inference.JsonObject
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                module Testing =
+                    let toJson = jsonReader {
+                        let! o = JO.readOptional "1"
+                        let! t = JO.read "2"
+                        let! r = JO.read "3"
+                        return { one = o; two = t; three = r }
+                    }
+                type Testing with
+                    static member FromJson (_: Testing): JsonReader<Testing> =
+                        Testing.toJson
+
+            module Operators =
+                module D = Chiron.Serialization.Json.Decode
+                module JO = Chiron.JsonObject
+                module JO = Chiron.Inference.JsonObject
+                open Chiron.ObjectReader.Operators
+                type Testing =
+                    { one: int option
+                      two: bool
+                      three: int }
+                module Testing =
+                    let decode =
+                        (fun o t r -> { one = o; two = t; three = r })
+                        <!> JO.readOptional "1"
+                        <*> JO.read "2"
+                        <*> JO.read "3"
+                    let toJson =
+                        ObjectReader.toJsonReader decode
+                type Testing with
+                    static member FromJson (_: Testing): JsonReader<Testing> =
+                        Testing.toJson
 
     module Obsolete =
         open ChironObsolete
+
+        let testJson =
+            Json.Object <| Map.ofList
+                [ "2", Json.Bool true
+                  "3", Json.Number 42M ]
+
         module ComputationExpression =
             type Testing =
                 { one: int option
                   two: bool
                   three: int }
-                static member ToJson (x: Testing): Json<unit> = json {
-                    do! Json.writeUnlessDefault "1" None x.one
-                    do! Json.write "2" x.two
-                    do! Json.write "3" x.three
+                static member FromJson (_: Testing): Json<Testing> = json {
+                    let! o = Json.readOrDefault "1" None
+                    let! t = Json.read "2"
+                    let! r = Json.read "3"
+                    return { one = o; two = t; three = r }
                 }
-            let testObject = { one = None; two = true; three = 42 }
 
         module Operators =
             open ChironObsolete.Operators
@@ -96,37 +184,53 @@ module Examples =
                 { one: int option
                   two: bool
                   three: int }
-                static member ToJson (x: Testing): Json<unit> =
-                       Json.writeUnlessDefault "1" None x.one
-                    *> Json.write "2" x.two
-                    *> Json.write "3" x.three
-            let testObject = { one = None; two = true; three = 42 }
+                static member FromJson (_: Testing): Json<Testing> =
+                    (fun o t r -> { one = o; two = t; three = r })
+                    <!> Json.readOrDefault "1" None
+                    <*> Json.read "2"
+                    <*> Json.read "3"
 
 [<Config(typeof<CoreConfig>)>]
-type Encoding () =
+type Decoding () =
     [<Benchmark>]
-    member x.Inline_Explicit () =
-        Inference.Json.encodeObject Examples.Inline.Explicit.testObject
+    member x.Inline_Explicit_ComputationExpression () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.Inline.Explicit.ComputationExpression.Testing>) |> ignore
 
     [<Benchmark>]
-    member x.InModule_Explicit () =
-        Inference.Json.encodeObject Examples.InModule.Explicit.testObject
+    member x.InModule_Explicit_ComputationExpression () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.InModule.Explicit.ComputationExpression.Testing>) |> ignore
 
     [<Benchmark>]
-    member x.Inline_Inferred () =
-        Inference.Json.encode Examples.Inline.Inferred.testObject
+    member x.Inline_Inferred_ComputationExpression () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.Inline.Inferred.ComputationExpression.Testing>) |> ignore
 
     [<Benchmark>]
-    member x.InModule_Inferred () =
-        Inference.Json.encode Examples.InModule.Inferred.testObject
+    member x.InModule_Inferred_ComputationExpression () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.InModule.Inferred.ComputationExpression.Testing>) |> ignore
+
+    [<Benchmark>]
+    member x.Inline_Explicit_Operators () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.Inline.Explicit.Operators.Testing>) |> ignore
+
+    [<Benchmark>]
+    member x.InModule_Explicit_Operators () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.InModule.Explicit.Operators.Testing>) |> ignore
+
+    [<Benchmark>]
+    member x.Inline_Inferred_Operators () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.Inline.Inferred.Operators.Testing>) |> ignore
+
+    [<Benchmark>]
+    member x.InModule_Inferred_Operators () =
+        (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.InModule.Inferred.Operators.Testing>) |> ignore
 
     [<Benchmark(Baseline=true)>]
     member x.Version6_ComputationExpression () =
-        ChironObsolete.Mapping.Json.serialize Examples.Obsolete.ComputationExpression.testObject
+        (ChironObsolete.Mapping.Json.deserialize DecodeExamples.Obsolete.testJson : DecodeExamples.Obsolete.ComputationExpression.Testing) |> ignore
 
     [<Benchmark>]
     member x.Version6_Operators () =
-        ChironObsolete.Mapping.Json.serialize Examples.Obsolete.Operators.testObject
+        (ChironObsolete.Mapping.Json.deserialize DecodeExamples.Obsolete.testJson : DecodeExamples.Obsolete.Operators.Testing) |> ignore
 
 // module Method1 =
 //     open Chiron.ObjectReader.Operators

@@ -132,6 +132,12 @@ module JsonResult =
         | Error e1, Error e2 -> Error (e1 @ e2)
         | Error e, _ | _, Error e -> Error e
 
+    let applyDelay (c2aR: 'c -> JsonResult<'a>) (c: 'c) (a2Rb: JsonResult<'a -> 'b>) : JsonResult<'b> =
+        match a2Rb, c2aR c with
+        | Ok a2b, Ok a -> Ok (a2b a)
+        | Error e1, Error e2 -> Error (e1 @ e2)
+        | Error e, _ | _, Error e -> Error e
+
     let applyShort (c2aR: 'c -> JsonResult<'a>) (c: 'c) (a2Rb: JsonResult<'a -> 'b>) : JsonResult<'b> =
         match a2Rb with
         | Ok a2b ->
@@ -139,6 +145,11 @@ module JsonResult =
             | Ok a -> Ok (a2b a)
             | Error e -> Error e
         | Error e -> Error e
+
+    let compose (b2cR: 'b -> JsonResult<'c>) (a2bR: 'a -> JsonResult<'b>) : ('a -> JsonResult<'c>) =
+        fun a ->
+            a2bR a
+            |> bind b2cR
 
     let withPropertyTag p (a2bR : 'a -> JsonResult<'b>) (a : 'a) : JsonResult<'b> =
         match a2bR a with
@@ -180,6 +191,13 @@ module JsonResult =
             let sb = sb.AppendLine(sprintf "Found %i errors:" (List.length errs))
             let sb = errs |> List.fold (fun (sb:System.Text.StringBuilder) e -> sb.Append("  ").AppendLine(JsonFailure.toString e)) sb
             sb.ToString()
+
+    module Operators =
+        let inline (<!>) a2b aR = map a2b aR
+        let inline (<*>) a2Rb aR = apply aR a2Rb
+        let inline (<*>!) a2Rb c2aR c = applyShort c2aR c a2Rb
+        let inline (>=>) a2bR b2cR = compose b2cR a2bR
+        let inline (>->) a2bR b2c = compose (fun b -> b2c b |> Ok) a2bR
 
 module Internal =
     let jsonToJsonObject json =
@@ -433,23 +451,29 @@ module JsonObject =
         | Some a -> writeMixinWith encode a jObj
         | None -> jObj
 
-    let readWith (decode: JsonReader<'a>) (k: string) (jsonObject: JsonObject) : Result<'a,JsonFailure list> =
+    let readWith (decode: JsonReader<'a>) (k: string) : ObjectReader<'a> =
+        let binder = JsonResult.withPropertyTag k decode
+        fun jsonObject ->
         find k jsonObject
-        |> JsonResult.bind (JsonResult.withPropertyTag k decode)
+            |> JsonResult.bind binder
 
-    let readOptionalWith (decode: JsonReader<'a>) (k: string) (jsonObject: JsonObject) : Result<'a option,JsonFailure list> =
+    let readOptionalWith (decode: JsonReader<'a>) (k: string) : ObjectReader<'a option> =
+        let mapper =
+            JsonResult.withPropertyTag k decode
+        fun jsonObject ->
+            let aRO =
         tryFind k jsonObject
-        |> Option.map (JsonResult.withPropertyTag k decode)
-        |> function
+                |> Option.map mapper
+            match aRO with
             | Some (Ok a) -> Ok (Some a)
             | Some (Error e) -> Error e
             | None -> Ok None
 
-    let readChildWith (decode: ObjectReader<'a>) (k: string) (jsonObject: JsonObject) =
-        readWith (ObjectReader.toJsonReader decode) k jsonObject
+    let readChildWith (decode: ObjectReader<'a>) (k: string) : ObjectReader<'a> =
+        readWith (ObjectReader.toJsonReader decode) k
 
-    let readOptionalChildWith (decode: ObjectReader<'a>) (k: string) (jsonObject: JsonObject) =
-        readOptionalWith (ObjectReader.toJsonReader decode) k jsonObject
+    let readOptionalChildWith (decode: ObjectReader<'a>) (k: string) : ObjectReader<'a option> =
+        readOptionalWith (ObjectReader.toJsonReader decode) k
 
     let encode jObj = Json.Object jObj
     let decode json = Internal.jsonToJsonObject json
@@ -951,15 +975,19 @@ module Serialization =
                 Null
 
         module Decode =
-            let json (json: Json) = Ok json
+            let inline (>=>) decodeA decodeB = JsonResult.Operators.(>=>) decodeA decodeB
+            let inline (>->) decode convert = JsonResult.Operators.(>->) decode convert
 
-            let unit (json: Json) =
-                match json with
+            let json : JsonReader<Json> = Ok
+
+            let unit : JsonReader<unit> =
+                do ()
+                function
                 | Json.Null -> Ok ()
-                | _ -> JsonResult.typeMismatch JsonMemberType.Null json
+                | json -> JsonResult.typeMismatch JsonMemberType.Null json
 
-            let oneOf (decoders: JsonReader<'a> list) (json: Json) =
-                let rec inner decoders s i =
+            let oneOf (decoders: JsonReader<'a> list) : JsonReader<'a> =
+                let rec inner decoders (s: JsonResult<'a>) i (json: Json) =
                     match s, decoders with
                     | _, [] | Ok _, _ -> s
                     | Error oldErrs, decode :: decoders ->
@@ -967,22 +995,22 @@ module Serialization =
                         match r with
                         | Ok _ -> r
                         | Error errs ->
-                            inner decoders (Error (oldErrs @ (JsonFailure.tagList (ChoiceTag i) errs))) (i + 1u)
+                            inner decoders (Error (oldErrs @ (JsonFailure.tagList (ChoiceTag i) errs))) (i + 1u) json
                 inner decoders JsonResult.emptyError 0u
 
-            let jsonObject (json: Json) =
-                JsonObject.decode json
+            let jsonObject : JsonReader<JsonObject> =
+                JsonObject.decode
 
-            let jsonObjectWith (decode: ObjectReader<'a>) (json: Json) =
-                jsonObject json
-                |> JsonResult.bind decode
+            let jsonObjectWith (decode: ObjectReader<'a>) : JsonReader<'a> =
+                jsonObject >=> decode
 
-            let list (json: Json) =
-                match json with
+            let list : JsonReader<Json list> =
+                do ()
+                function
                 | Json.Array a -> Ok a
-                | _ -> JsonResult.typeMismatch JsonMemberType.Array json
+                | json -> JsonResult.typeMismatch JsonMemberType.Array json
 
-            let listInnerQuick (decode: JsonReader<'a>) (init: 's) (fold: 'a -> 's -> 's) (xs: Json list) : JsonResult<'s> =
+            let listInnerQuick (decode: JsonReader<'a>) (init: 's) (fold: 'a -> 's -> 's) : Json list -> JsonResult<'s> =
                 let folder json (sR, i) =
                     let next =
                         match sR with
@@ -993,10 +1021,10 @@ module Serialization =
                             | Error e -> Error e
                         | Error e -> Error e
                     (next, i + 1u)
-                List.foldBack folder xs (Ok init, 0u)
-                |> fst
+                fun xs ->
+                    List.foldBack folder xs (Ok init, 0u) |> fst
 
-            let listInner  (decode: JsonReader<'a>) (init: 's) (fold: 'a -> 's -> 's) (xs: Json list): JsonResult<'s>=
+            let listInner  (decode: JsonReader<'a>) (init: 's) (fold: 'a -> 's -> 's) : Json list -> JsonResult<'s> =
                 let folder json (sR, i) =
                     let aR = JsonResult.withIndexTag i decode json
                     let next =
@@ -1007,68 +1035,68 @@ module Serialization =
                         | Error errs, _
                         | _, Error errs -> Error errs
                     (next, i + 1u)
-                List.foldBack folder xs (Ok init, 0u)
-                |> fst
+                fun xs ->
+                    List.foldBack folder xs (Ok init, 0u) |> fst
 
-            let listFolder<'a> : 'a -> 'a list -> 'a list =
-                do ()
-                fun x xs -> x :: xs
+            let listFolder x xs = x :: xs
 
-            let listWithQuick (decode: JsonReader<'a>) (json: Json) : JsonResult<'a list> =
-                list json
-                |> JsonResult.bind (listInnerQuick decode [] listFolder)
+            let listWithQuick (decode: JsonReader<'a>) : JsonReader<'a list> =
+                list >=> (listInnerQuick decode [] listFolder)
 
-            let listWith (decode: JsonReader<'a>) (json: Json) : JsonResult<'a list> =
-                list json
-                |> JsonResult.bind (listInner decode [] listFolder)
+            let listWith (decode: JsonReader<'a>) : JsonReader<'a list> =
+                list >=> (listInner decode [] listFolder)
 
-            let array (json: Json) =
-                list json
-                |> JsonResult.map Array.ofList
+            let array : JsonReader<Json array>=
+                list >-> Array.ofList
 
-            let arrayFolder<'a> : 'a -> 'a array * int -> 'a array * int =
-                do ()
-                fun x (arr: 'a array, idx) ->
+            let arrayFolder x (arr: 'a array, idx) =
                     arr.[idx] <- x
                     (arr, idx - 1)
 
-            let arrayWithQuick (decode: JsonReader<'a>) (json: Json) =
-                list json
-                |> JsonResult.bind (fun jLst -> let len = List.length jLst in listInnerQuick decode (Array.zeroCreate len, len - 1) arrayFolder jLst)
-                |> JsonResult.map fst
+            let fstλ<'a,'b> : ('a * 'b) -> 'a = (do ()); fun (a, _) -> a
+            let fstλstruct<'a,'b> : struct ('a * 'b) -> 'a = (do ()); fun (struct (a, _)) -> a
 
-            let arrayWith (decode: JsonReader<'a>) (json: Json) =
-                list json
-                |> JsonResult.bind (fun jLst -> let len = List.length jLst in listInner decode (Array.zeroCreate len, len - 1) arrayFolder jLst)
-                |> JsonResult.map fst
+            let jsonListToArray inner decode =
+                let mapper = fstλ
+                fun jLst ->
+                    let len = List.length jLst
+                    inner decode (Array.zeroCreate len, len - 1) arrayFolder jLst
+                    |> JsonResult.map mapper
 
-            let optionWith (decode: JsonReader<'a>) =
+            let arrayWithQuick (decode: JsonReader<'a>) : JsonReader<'a array> =
+                list >=> jsonListToArray listInnerQuick decode
+
+            let arrayWith (decode: JsonReader<'a>) : JsonReader<'a array> =
+                list >=> jsonListToArray listInner decode
+
+            let optionWith (decode: JsonReader<'a>) : JsonReader<'a option> =
                 let decode =
                     oneOf
-                        [ unit |> JsonReader.map (fun () -> None)
-                          decode |> JsonReader.map Some ]
+                        [ unit >-> (fun () -> None)
+                          decode >-> Some ]
                 fun json -> decode json
 
-            let option =
+            let option : JsonReader<Json option> =
                 optionWith json
 
             // let set (json: Json) =
-            //     list json
-            //     |> JsonResult.map Set.ofList
+            //     list >-> Set.ofList
 
             let setFolder = Set.add
+            let jsonListToSet inner decode =
+                inner decode Set.empty setFolder
 
-            let setWithQuick (decode: JsonReader<'a>) (json: Json) =
-                list json
-                |> JsonResult.bind (listInnerQuick decode Set.empty setFolder)
+            let setWithQuick (decode: JsonReader<'a>) : JsonReader<Set<'a>> =
+                list >=> jsonListToSet listInnerQuick decode
 
-            let setWith (decode: JsonReader<'a>) (json: Json) =
-                list json
-                |> JsonResult.bind (listInner decode Set.empty setFolder)
+            let setWith (decode: JsonReader<'a>) : JsonReader<Set<'a>> =
+                list >=> jsonListToSet listInner decode
 
-            let map (json: Json) =
-                jsonObject json
-                |> JsonResult.map JsonObject.toMap
+            let mapConverter = JsonObject.toMap
+
+            let map : JsonReader<Map<string,Json>> =
+                do ()
+                jsonObject >-> mapConverter
 
             let deserKeyErr<'a> e = JsonFailure.DeserializationError (typeof<'a>, "Unable to parse key:" + e)
             let mapInnerQuick (parseKey : string -> Result<'k,string>) (decode: JsonReader<'v>) (kvps: (string * Json) list): JsonResult<Map<'k,'v>> =
@@ -1099,266 +1127,343 @@ module Serialization =
                     | _, _, Error errs -> Error errs
                     | _, Error err, _ -> Error [deserKeyErr<'k> err]) (Ok Map.empty) kvps
 
-            let mapWithQuick (decode: JsonReader<'a>) (json: Json) =
+            let mapWithQuick (decode: JsonReader<'a>) : JsonReader<Map<string,'a>> =
+                let binder =
+                    fun jObj ->
+                        JsonObject.toPropertyList jObj
+                        |> mapInnerQuick Ok decode
+                fun json ->
                 jsonObject json
-                |> JsonResult.bind (fun jObj ->
-                    let xs = JsonObject.toPropertyList jObj
-                    mapInnerQuick Ok decode xs)
+                    |> JsonResult.bind binder
 
-            let mapWith (decode: JsonReader<'a>) (json: Json) =
+            let mapWith (decode: JsonReader<'a>) : JsonReader<Map<string,'a>> =
+                let binder =
+                    fun jObj ->
+                        JsonObject.toPropertyList jObj
+                        |> mapInner Ok decode
+                fun json ->
                 jsonObject json
-                |> JsonResult.bind (fun jObj ->
-                    let xs = JsonObject.toPropertyList jObj
-                    mapInner Ok decode xs)
+                    |> JsonResult.bind binder
 
-            let mapWithCustomKeyQuick (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) (json: Json) =
+            let mapWithCustomKeyQuick (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) : JsonReader<Map<'a,'b>> =
+                let binder =
+                    fun jObj ->
+                        JsonObject.toPropertyList jObj
+                        |> mapInnerQuick parseKey decode
+                fun json ->
                 jsonObject json
-                |> JsonResult.bind (fun jObj ->
-                    let xs = JsonObject.toPropertyList jObj
-                    mapInnerQuick parseKey decode xs)
+                    |> JsonResult.bind binder
 
-            let mapWithCustomKey (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) (json: Json) =
+            let mapWithCustomKey (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) : JsonReader<Map<'a,'b>> =
+                let binder =
+                    fun jObj ->
+                        JsonObject.toPropertyList jObj
+                        |> mapInner parseKey decode
+                fun json ->
                 jsonObject json
-                |> JsonResult.bind (fun jObj ->
-                    let xs = JsonObject.toPropertyList jObj
-                    mapInner parseKey decode xs)
+                    |> JsonResult.bind binder
 
-            let tuple2 (json: Json) =
-                list json
-                |> JsonResult.bind (function
+            let listToTuple2 : Json list -> JsonResult<Json * Json>=
+                do ()
+                function
                     | [a;b] -> Ok (a, b)
                     | [_] -> JsonResult.deserializationError "2-Tuple has only one element"
                     | [] -> JsonResult.deserializationError "2-Tuple has zero elements"
-                    | _ -> JsonResult.deserializationError "2-Tuple has too many elements")
+                | _ -> JsonResult.deserializationError "2-Tuple has too many elements"
 
-            let mk2Tuple = Ok (fun a b -> (a, b))
-            let tuple2WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (json: Json) =
-                tuple2 json
-                |> JsonResult.bind (fun (a, b) ->
-                    mk2Tuple
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 0u decodeA) a
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 1u decodeB) b)
+            let tuple2 : JsonReader<Json * Json> =
+                do ()
+                list >=> listToTuple2
 
-            let tuple2With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (json: Json) =
-                tuple2 json
-                |> JsonResult.bind (fun (a, b) ->
-                    mk2Tuple
-                    |> JsonResult.apply (JsonResult.withIndexTag 0u decodeA a)
-                    |> JsonResult.apply (JsonResult.withIndexTag 1u decodeB b))
+            let mkTuple2 a b = (a, b)
+            let tuple2WithTaggedDecoders f decodeA decodeB =
+                let tagA = JsonResult.withIndexTag 0u decodeA
+                let tagB = JsonResult.withIndexTag 1u decodeB
+                f mkTuple2 tagA tagB
 
-            let tuple3 (json: Json) =
-                list json
-                |> JsonResult.bind (function
+            let jsonTuple2ToTuple2Quick mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) =
+                fun (a, b) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyShort decodeB b
+
+            let jsonTuple2ToTuple2 mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) =
+                fun (a, b) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyDelay decodeB b
+
+            let tuple2WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) : JsonReader<'a * 'b> =
+                tuple2 >=> tuple2WithTaggedDecoders jsonTuple2ToTuple2Quick decodeA decodeB
+
+            let tuple2With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) : JsonReader<'a * 'b> =
+                tuple2 >=> tuple2WithTaggedDecoders jsonTuple2ToTuple2 decodeA decodeB
+
+            let listToTuple3 =
+                do ()
+                function
                     | [a;b;c] -> Ok (a, b, c)
                     | x when List.length x > 3 -> JsonResult.deserializationError "3-Tuple has excess elements"
-                    | _ -> JsonResult.deserializationError "3-Tuple has insufficient elements")
+                | _ -> JsonResult.deserializationError "3-Tuple has insufficient elements"
 
-            let mk3Tuple = Ok (fun a b c -> (a, b, c))
-            let tuple3WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (json: Json) =
-                tuple3 json
-                |> JsonResult.bind (fun (a, b, c) ->
-                    mk3Tuple
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 0u decodeA) a
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 1u decodeB) b
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 2u decodeC) c)
+            let tuple3 =
+                list >=> listToTuple3
 
-            let tuple3With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (json: Json) =
-                tuple3 json
-                |> JsonResult.bind (fun (a, b, c) ->
-                    mk3Tuple
-                    |> JsonResult.apply (JsonResult.withIndexTag 0u decodeA a)
-                    |> JsonResult.apply (JsonResult.withIndexTag 1u decodeB b)
-                    |> JsonResult.apply (JsonResult.withIndexTag 2u decodeC c))
+            let mkTuple3 a b c = (a, b, c)
+            let tuple3WithTaggedDecoders f decodeA decodeB decodeC =
+                let tagA = JsonResult.withIndexTag 0u decodeA
+                let tagB = JsonResult.withIndexTag 1u decodeB
+                let tagC = JsonResult.withIndexTag 2u decodeC
+                f mkTuple3 tagA tagB tagC
 
-            let tuple4 (json: Json) =
-                list json
-                |> JsonResult.bind (function
+            let jsonTuple3ToTuple3Quick mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) =
+                fun (a, b, c) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyShort decodeB b
+                    |> JsonResult.applyShort decodeC c
+
+            let jsonTuple3ToTuple3 mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) =
+                fun (a, b, c) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyDelay decodeB b
+                    |> JsonResult.applyDelay decodeC c
+
+            let tuple3WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>): JsonReader<'a * 'b * 'c> =
+                tuple3 >=> tuple3WithTaggedDecoders jsonTuple3ToTuple3Quick decodeA decodeB decodeC
+
+            let tuple3With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>): JsonReader<'a * 'b * 'c> =
+                tuple3 >=> tuple3WithTaggedDecoders jsonTuple3ToTuple3 decodeA decodeB decodeC
+
+            let listToTuple4 =
+                do ()
+                function
                     | [a;b;c;d] -> Ok (a, b, c, d)
                     | x when List.length x > 4 -> JsonResult.deserializationError "4-Tuple has excess elements"
-                    | _ -> JsonResult.deserializationError "4-Tuple has insufficient elements")
+                | _ -> JsonResult.deserializationError "4-Tuple has insufficient elements"
 
-            let mk4Tuple = Ok (fun a b c d -> (a, b, c, d))
-            let tuple4WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (json: Json) =
-                tuple4 json
-                |> JsonResult.bind (fun (a, b, c, d) ->
-                    mk4Tuple
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 0u decodeA) a
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 1u decodeB) b
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 2u decodeC) c
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 3u decodeD) d)
+            let tuple4 =
+                list >=> listToTuple4
 
-            let tuple4With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (json: Json) =
-                tuple4 json
-                |> JsonResult.bind (fun (a, b, c, d) ->
-                    mk4Tuple
-                    |> JsonResult.apply (JsonResult.withIndexTag 0u decodeA a)
-                    |> JsonResult.apply (JsonResult.withIndexTag 1u decodeB b)
-                    |> JsonResult.apply (JsonResult.withIndexTag 2u decodeC c)
-                    |> JsonResult.apply (JsonResult.withIndexTag 3u decodeD d))
+            let mkTuple4 a b c d = (a, b, c, d)
+            let tuple4WithTaggedDecoders f decodeA decodeB decodeC decodeD =
+                let tagA = JsonResult.withIndexTag 0u decodeA
+                let tagB = JsonResult.withIndexTag 1u decodeB
+                let tagC = JsonResult.withIndexTag 2u decodeC
+                let tagD = JsonResult.withIndexTag 3u decodeD
+                f mkTuple4 tagA tagB tagC tagD
 
-            let tuple5 (json: Json) =
-                list json
-                |> JsonResult.bind (function
+            let jsonTuple4ToTuple4Quick mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) =
+                fun (a, b, c, d) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyShort decodeB b
+                    |> JsonResult.applyShort decodeC c
+                    |> JsonResult.applyShort decodeD d
+
+            let jsonTuple4ToTuple4 mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) =
+                fun (a, b, c, d) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyDelay decodeB b
+                    |> JsonResult.applyDelay decodeC c
+                    |> JsonResult.applyDelay decodeD d
+
+            let tuple4WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) =
+                tuple4 >=> tuple4WithTaggedDecoders jsonTuple4ToTuple4Quick decodeA decodeB decodeC decodeD
+
+            let tuple4With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) =
+                tuple4 >=> tuple4WithTaggedDecoders jsonTuple4ToTuple4 decodeA decodeB decodeC decodeD
+
+            let listToTuple5 =
+                do ()
+                function
                     | [a;b;c;d;e] -> Ok (a, b, c, d, e)
                     | x when List.length x > 5 -> JsonResult.deserializationError "5-Tuple has excess elements"
-                    | _ -> JsonResult.deserializationError "5-Tuple has insufficient elements")
+                | _ -> JsonResult.deserializationError "5-Tuple has insufficient elements"
 
-            let mk5Tuple = Ok (fun a b c d e -> (a, b, c, d, e))
-            let tuple5WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (json: Json) =
-                tuple5 json
-                |> JsonResult.bind (fun (a, b, c, d, e) ->
-                    mk5Tuple
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 0u decodeA) a
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 1u decodeB) b
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 2u decodeC) c
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 3u decodeD) d
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 4u decodeE) e)
+            let tuple5 =
+                list >=> listToTuple5
 
-            let tuple5With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (json: Json) =
-                tuple5 json
-                |> JsonResult.bind (fun (a, b, c, d, e) ->
-                    mk5Tuple
-                    |> JsonResult.apply (JsonResult.withIndexTag 0u decodeA a)
-                    |> JsonResult.apply (JsonResult.withIndexTag 1u decodeB b)
-                    |> JsonResult.apply (JsonResult.withIndexTag 2u decodeC c)
-                    |> JsonResult.apply (JsonResult.withIndexTag 3u decodeD d)
-                    |> JsonResult.apply (JsonResult.withIndexTag 4u decodeE e))
+            let mkTuple5 a b c d e = (a, b, c, d, e)
+            let tuple5WithTaggedDecoders f decodeA decodeB decodeC decodeD decodeE =
+                let tagA = JsonResult.withIndexTag 0u decodeA
+                let tagB = JsonResult.withIndexTag 1u decodeB
+                let tagC = JsonResult.withIndexTag 2u decodeC
+                let tagD = JsonResult.withIndexTag 3u decodeD
+                let tagE = JsonResult.withIndexTag 4u decodeE
+                f mkTuple5 tagA tagB tagC tagD tagE
 
-            let tuple6 (json: Json) =
-                list json
-                |> JsonResult.bind (function
+            let jsonTuple5ToTuple5Quick mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) =
+                fun (a, b, c, d, e) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyShort decodeB b
+                    |> JsonResult.applyShort decodeC c
+                    |> JsonResult.applyShort decodeD d
+                    |> JsonResult.applyShort decodeE e
+
+            let jsonTuple5ToTuple5 mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) =
+                fun (a, b, c, d, e) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyDelay decodeB b
+                    |> JsonResult.applyDelay decodeC c
+                    |> JsonResult.applyDelay decodeD d
+                    |> JsonResult.applyDelay decodeE e
+
+            let tuple5WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) =
+                tuple5 >=> tuple5WithTaggedDecoders jsonTuple5ToTuple5Quick decodeA decodeB decodeC decodeD decodeE
+
+            let tuple5With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) =
+                tuple5 >=> tuple5WithTaggedDecoders jsonTuple5ToTuple5 decodeA decodeB decodeC decodeD decodeE
+
+            let listToTuple6 =
+                do ()
+                function
                     | [a;b;c;d;e;f] -> Ok (a, b, c, d, e, f)
                     | x when List.length x > 6 -> JsonResult.deserializationError "6-Tuple has excess elements"
-                    | _ -> JsonResult.deserializationError "6-Tuple has insufficient elements")
+                | _ -> JsonResult.deserializationError "6-Tuple has insufficient elements"
 
-            let mk6Tuple = Ok (fun a b c d e f -> (a, b, c, d, e, f))
-            let tuple6WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (json: Json) =
-                tuple6 json
-                |> JsonResult.bind (fun (a, b, c, d, e, f) ->
-                    mk6Tuple
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 0u decodeA) a
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 1u decodeB) b
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 2u decodeC) c
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 3u decodeD) d
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 4u decodeE) e
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 5u decodeF) f)
+            let tuple6 =
+                list >=> listToTuple6
 
-            let tuple6With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (json: Json) =
-                tuple6 json
-                |> JsonResult.bind (fun (a, b, c, d, e, f) ->
-                    mk6Tuple
-                    |> JsonResult.apply (JsonResult.withIndexTag 0u decodeA a)
-                    |> JsonResult.apply (JsonResult.withIndexTag 1u decodeB b)
-                    |> JsonResult.apply (JsonResult.withIndexTag 2u decodeC c)
-                    |> JsonResult.apply (JsonResult.withIndexTag 3u decodeD d)
-                    |> JsonResult.apply (JsonResult.withIndexTag 4u decodeE e)
-                    |> JsonResult.apply (JsonResult.withIndexTag 5u decodeF f))
+            let mkTuple6 a b c d e f = (a, b, c, d, e, f)
+            let tuple6WithTaggedDecoders f decodeA decodeB decodeC decodeD decodeE decodeF =
+                let tagA = JsonResult.withIndexTag 0u decodeA
+                let tagB = JsonResult.withIndexTag 1u decodeB
+                let tagC = JsonResult.withIndexTag 2u decodeC
+                let tagD = JsonResult.withIndexTag 3u decodeD
+                let tagE = JsonResult.withIndexTag 4u decodeE
+                let tagF = JsonResult.withIndexTag 5u decodeF
+                f mkTuple6 tagA tagB tagC tagD tagE tagF
 
-            let tuple7 (json: Json) =
-                list json
-                |> JsonResult.bind (function
+            let jsonTuple6ToTuple6Quick mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) =
+                fun (a, b, c, d, e, f) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyShort decodeB b
+                    |> JsonResult.applyShort decodeC c
+                    |> JsonResult.applyShort decodeD d
+                    |> JsonResult.applyShort decodeE e
+                    |> JsonResult.applyShort decodeF f
+
+            let jsonTuple6ToTuple6 mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) =
+                fun (a, b, c, d, e, f) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyDelay decodeB b
+                    |> JsonResult.applyDelay decodeC c
+                    |> JsonResult.applyDelay decodeD d
+                    |> JsonResult.applyDelay decodeE e
+                    |> JsonResult.applyDelay decodeF f
+
+            let tuple6WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) =
+                tuple6 >=> tuple6WithTaggedDecoders jsonTuple6ToTuple6Quick decodeA decodeB decodeC decodeD decodeE decodeF
+
+            let tuple6With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) =
+                tuple6 >=> tuple6WithTaggedDecoders jsonTuple6ToTuple6 decodeA decodeB decodeC decodeD decodeE decodeF
+
+            let listToTuple7 =
+                do ()
+                function
                     | [a;b;c;d;e;f;g] -> Ok (a, b, c, d, e, f, g)
                     | x when List.length x > 7 -> JsonResult.deserializationError "7-Tuple has excess elements"
-                    | _ -> JsonResult.deserializationError "7-Tuple has insufficient elements")
+                | _ -> JsonResult.deserializationError "7-Tuple has insufficient elements"
 
-            let mk7Tuple = Ok (fun a b c d e f g -> (a, b, c, d, e, f, g))
-            let tuple7WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (decodeG: JsonReader<'g>) (json: Json) =
-                tuple7 json
-                |> JsonResult.bind (fun (a, b, c, d, e, f, g) ->
-                    mk7Tuple
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 0u decodeA) a
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 1u decodeB) b
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 2u decodeC) c
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 3u decodeD) d
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 4u decodeE) e
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 5u decodeF) f
-                    |> JsonResult.applyShort (JsonResult.withIndexTag 6u decodeG) g)
+            let tuple7 =
+                list >=> listToTuple7
 
-            let tuple7With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (decodeG: JsonReader<'g>) (json: Json) =
-                tuple7 json
-                |> JsonResult.bind (fun (a, b, c, d, e, f, g) ->
-                    mk7Tuple
-                    |> JsonResult.apply (JsonResult.withIndexTag 0u decodeA a)
-                    |> JsonResult.apply (JsonResult.withIndexTag 1u decodeB b)
-                    |> JsonResult.apply (JsonResult.withIndexTag 2u decodeC c)
-                    |> JsonResult.apply (JsonResult.withIndexTag 3u decodeD d)
-                    |> JsonResult.apply (JsonResult.withIndexTag 4u decodeE e)
-                    |> JsonResult.apply (JsonResult.withIndexTag 5u decodeF f)
-                    |> JsonResult.apply (JsonResult.withIndexTag 6u decodeG g))
+            let mkTuple7 a b c d e f g = (a, b, c, d, e, f, g)
+            let tuple7WithTaggedDecoders f decodeA decodeB decodeC decodeD decodeE decodeF decodeG =
+                let tagA = JsonResult.withIndexTag 0u decodeA
+                let tagB = JsonResult.withIndexTag 1u decodeB
+                let tagC = JsonResult.withIndexTag 2u decodeC
+                let tagD = JsonResult.withIndexTag 3u decodeD
+                let tagE = JsonResult.withIndexTag 4u decodeE
+                let tagF = JsonResult.withIndexTag 5u decodeF
+                let tagG = JsonResult.withIndexTag 6u decodeG
+                f mkTuple7 tagA tagB tagC tagD tagE tagF tagG
 
-            let number (json: Json) =
-                match json with
+            let jsonTuple7ToTuple7Quick mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (decodeG: JsonReader<'g>) =
+                fun (a, b, c, d, e, f, g) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyShort decodeB b
+                    |> JsonResult.applyShort decodeC c
+                    |> JsonResult.applyShort decodeD d
+                    |> JsonResult.applyShort decodeE e
+                    |> JsonResult.applyShort decodeF f
+                    |> JsonResult.applyShort decodeG g
+
+            let jsonTuple7ToTuple7 mkTuple (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (decodeG: JsonReader<'g>) =
+                fun (a, b, c, d, e, f, g) ->
+                    JsonResult.map mkTuple (decodeA a)
+                    |> JsonResult.applyDelay decodeB b
+                    |> JsonResult.applyDelay decodeC c
+                    |> JsonResult.applyDelay decodeD d
+                    |> JsonResult.applyDelay decodeE e
+                    |> JsonResult.applyDelay decodeF f
+                    |> JsonResult.applyDelay decodeG g
+
+            let tuple7WithQuick (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (decodeG: JsonReader<'g>) =
+                tuple7 >=> tuple7WithTaggedDecoders jsonTuple7ToTuple7Quick decodeA decodeB decodeC decodeD decodeE decodeF decodeG
+
+            let tuple7With (decodeA: JsonReader<'a>) (decodeB: JsonReader<'b>) (decodeC: JsonReader<'c>) (decodeD: JsonReader<'d>) (decodeE: JsonReader<'e>) (decodeF: JsonReader<'f>) (decodeG: JsonReader<'g>) =
+                tuple7 >=> tuple7WithTaggedDecoders jsonTuple7ToTuple7 decodeA decodeB decodeC decodeD decodeE decodeF decodeG
+
+            let number =
+                do ()
+                function
                 | Json.Number n -> Ok n
-                | _ -> JsonResult.typeMismatch JsonMemberType.Number json
+                | json -> JsonResult.typeMismatch JsonMemberType.Number json
 
-            let int16 (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Int16.Parse)
+            let int16 =
+                number >=> JsonResult.fromThrowingConverter System.Int16.Parse
 
-            let int (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Int32.Parse)
+            let int =
+                number >=> JsonResult.fromThrowingConverter System.Int32.Parse
 
-            let int64 (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Int64.Parse)
+            let int64 =
+                number >=> JsonResult.fromThrowingConverter System.Int64.Parse
 
-            let uint16 (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.UInt16.Parse)
+            let uint16 =
+                number >=> JsonResult.fromThrowingConverter System.UInt16.Parse
 
-            let uint32 (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.UInt32.Parse)
+            let uint32 =
+                number >=> JsonResult.fromThrowingConverter System.UInt32.Parse
 
-            let uint64 (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.UInt64.Parse)
+            let uint64 =
+                number >=> JsonResult.fromThrowingConverter System.UInt64.Parse
 
-            let single (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Single.Parse)
+            let single =
+                number >=> JsonResult.fromThrowingConverter System.Single.Parse
 
-            let float (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Double.Parse)
+            let float =
+                number >=> JsonResult.fromThrowingConverter System.Double.Parse
 
-            let decimal (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Decimal.Parse)
+            let decimal =
+                number >=> JsonResult.fromThrowingConverter System.Decimal.Parse
 
-            let bigint (json: Json) =
-                number json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Numerics.BigInteger.Parse)
+            let bigint =
+                number >=> JsonResult.fromThrowingConverter System.Numerics.BigInteger.Parse
 
-            let string (json: Json) =
-                match json with
+            let string =
+                do ()
+                function
                 | Json.String s -> Ok s
-                | _ -> JsonResult.typeMismatch JsonMemberType.String json
+                | json -> JsonResult.typeMismatch JsonMemberType.String json
 
             let dateTimeParser s = System.DateTime.ParseExact (s, [| "s"; "r"; "o" |], null, System.Globalization.DateTimeStyles.AdjustToUniversal)
-            let dateTime (json: Json) =
-                string json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter dateTimeParser)
+            let dateTime =
+                string >=> JsonResult.fromThrowingConverter dateTimeParser
 
             let dateTimeOffsetParser s = System.DateTimeOffset.ParseExact (s, [| "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'"; "o"; "r" |], null, System.Globalization.DateTimeStyles.AssumeUniversal)
-            let dateTimeOffset (json: Json) =
-                string json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter dateTimeOffsetParser)
+            let dateTimeOffset =
+                string >=> JsonResult.fromThrowingConverter dateTimeOffsetParser
 
-            let guid (json: Json) =
-                string json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Guid.Parse)
+            let guid =
+                string >=> JsonResult.fromThrowingConverter System.Guid.Parse
 
-            let bytes (json: Json) =
-                string json
-                |> JsonResult.bind (JsonResult.fromThrowingConverter System.Convert.FromBase64String)
+            let bytes =
+                string >=> JsonResult.fromThrowingConverter System.Convert.FromBase64String
 
-            let bool (json: Json) =
-                match json with
+            let bool =
+                do ()
+                function
                 | Json.True -> Ok true
                 | Json.False -> Ok false
-                | _ -> JsonResult.typeMismatch JsonMemberType.Bool json
+                | json -> JsonResult.typeMismatch JsonMemberType.Bool json
 
         let deserializeWith (decode: JsonReader<'a>) (str: string) =
             Json.parse str
@@ -1565,23 +1670,23 @@ module Inference =
             static member ToJson (g: System.Guid): Json = E.guid g
             static member ToJson (j: Json): Json = E.json j
 
-            static member FromJson (_: JsonObject, json: Json) = D.jsonObject json
-            static member FromJson (_: string, json: Json) = D.string json
-            static member FromJson (_: int16, json: Json) = D.int16 json
-            static member FromJson (_: int, json: Json) = D.int json
-            static member FromJson (_: int64, json: Json) = D.int64 json
-            static member FromJson (_: uint16, json: Json) = D.uint16 json
-            static member FromJson (_: uint32, json: Json) = D.uint32 json
-            static member FromJson (_: uint64, json: Json) = D.uint64 json
-            static member FromJson (_: single, json: Json) = D.single json
-            static member FromJson (_: float, json: Json) = D.float json
-            static member FromJson (_: decimal, json: Json) = D.decimal json
-            static member FromJson (_: bigint, json: Json) = D.bigint json
-            static member FromJson (_: bool, json: Json) = D.bool json
-            static member FromJson (_: System.DateTime, json: Json) = D.dateTime json
-            static member FromJson (_: System.DateTimeOffset, json: Json) = D.dateTimeOffset json
-            static member FromJson (_: System.Guid, json: Json) = D.guid json
-            static member FromJson (_: Json, json: Json) = D.json json
+            static member FromJson (_: JsonObject) = D.jsonObject
+            static member FromJson (_: string) = D.string
+            static member FromJson (_: int16) = D.int16
+            static member FromJson (_: int) = D.int
+            static member FromJson (_: int64) = D.int64
+            static member FromJson (_: uint16) = D.uint16
+            static member FromJson (_: uint32) = D.uint32
+            static member FromJson (_: uint64) = D.uint64
+            static member FromJson (_: single) = D.single
+            static member FromJson (_: float) = D.float
+            static member FromJson (_: decimal) = D.decimal
+            static member FromJson (_: bigint) = D.bigint
+            static member FromJson (_: bool) = D.bool
+            static member FromJson (_: System.DateTime) = D.dateTime
+            static member FromJson (_: System.DateTimeOffset) = D.dateTimeOffset
+            static member FromJson (_: System.Guid) = D.guid
+            static member FromJson (_: Json) = D.json
 
         let inline encodeWithDefaults (defaults: ^def) (a: ^a): Json =
             ((^a or ^def) : (static member ToJson : ^a -> Json) a)
@@ -1589,10 +1694,10 @@ module Inference =
         let inline encode (a: 'a) =
             encodeWithDefaults ChironDefaults a
 
-        let inline decodeWithDefaults (defaults: ^def) (dummy: ^a) (json: Json): JsonResult<'a> =
-            ((^a or ^def) : (static member FromJson : ^a * Json -> JsonResult<'a>) (dummy, json))
+        let inline decodeWithDefaults (defaults: ^def) (dummy: ^a): JsonReader<'a> =
+            ((^a or ^def) : (static member FromJson : ^a -> JsonReader<'a>) dummy)
 
-        let inline decode (json: Json) =
+        let inline decode (json: Json) : JsonResult<'a> =
             decodeWithDefaults ChironDefaults Unchecked.defaultof<'a> json
 
         type ChironDefaults with
@@ -1608,26 +1713,26 @@ module Inference =
             static member inline ToJson (t): Json = E.tuple6 encode encode encode encode encode encode t
             static member inline ToJson (t): Json = E.tuple7 encode encode encode encode encode encode encode t
 
-            static member inline FromJson (_: 'a list, json: Json) = D.listWith decode json
-            static member inline FromJson (_: 'a array, json: Json): JsonResult<'a array> = D.arrayWith decode json
-            static member inline FromJson (_: 'a option, json: Json) = D.optionWith decode json
-            static member inline FromJson (_: Set<'a>, json: Json) = D.setWith decode json
-            static member inline FromJson (_: Map<string, 'a>, json: Json) = D.mapWith decode json
-            static member inline FromJson (_: 'a * 'b, json: Json) = D.tuple2With decode decode json
-            static member inline FromJson (_: 'a * 'b * 'c, json: Json) = D.tuple3With decode decode decode json
-            static member inline FromJson (_: 'a * 'b * 'c * 'd, json: Json) = D.tuple4With decode decode decode decode json
-            static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e, json: Json) = D.tuple5With decode decode decode decode decode json
-            static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e * 'f, json: Json) = D.tuple6With decode decode decode decode decode decode json
-            static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e * 'f * 'g, json: Json) = D.tuple7With decode decode decode decode decode decode decode json
+            static member inline FromJson (_: 'a list) = D.listWith decode
+            static member inline FromJson (_: 'a array): JsonReader<'a array> = D.arrayWith decode
+            static member inline FromJson (_: 'a option) = D.optionWith decode
+            static member inline FromJson (_: Set<'a>) = D.setWith decode
+            static member inline FromJson (_: Map<string, 'a>) = D.mapWith decode
+            static member inline FromJson (_: 'a * 'b) = D.tuple2With decode decode
+            static member inline FromJson (_: 'a * 'b * 'c) = D.tuple3With decode decode decode
+            static member inline FromJson (_: 'a * 'b * 'c * 'd) = D.tuple4With decode decode decode decode
+            static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e) = D.tuple5With decode decode decode decode decode
+            static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e * 'f) = D.tuple6With decode decode decode decode decode decode
+            static member inline FromJson (_: 'a * 'b * 'c * 'd * 'e * 'f * 'g) = D.tuple7With decode decode decode decode decode decode decode
 
     module Json =
-        let inline decodeWithDefaults (defaults: ^def) (a: ^a) (json: Json): JsonResult<'a> =
-            Internal.decodeWithDefaults defaults a json
+        let inline decodeWithDefaults (defaults: ^def) (a: ^a): JsonReader<'a> =
+            Internal.decodeWithDefaults defaults a
 
-        let inline decode (json: Json) =
+        let inline decode (json: Json) : JsonResult<'a>=
             Internal.decode json
 
-        let inline decodeObject (json: Json): JsonResult<'a> =
+        let inline decodeObject (json: Json) : JsonResult<'a> =
             let decode jObj = (^a : (static member Decode: JsonObject -> JsonResult<'a>) jObj)
             ObjectReader.toJsonReader decode json
 
@@ -1690,31 +1795,35 @@ module Inference =
             | Some v -> writeMixin v jObj
             | None -> jObj
 
-        let inline readWithDefaults (defaults : ^def) (k : string) (jsonObject: JsonObject) : JsonResult<'a> =
-            JsonObject.readWith Json.decode k jsonObject
+        let inline readWithDefaults (defaults : ^def) (k : string) : ObjectReader<'a> =
+            JsonObject.readWith Json.decode k
 
-        let inline read (k: string) (jsonObject: JsonObject) : JsonResult<'a> =
-            readWithDefaults Internal.ChironDefaults k jsonObject
+        let inline read (k: string) : ObjectReader<'a> =
+            readWithDefaults Internal.ChironDefaults k
 
-        let inline readOptionalWithDefaults (defaults : ^def) (k : string) (jsonObject: JsonObject) : JsonResult<'a option> =
-            JsonObject.readOptionalWith Json.decode k jsonObject
+        let inline readOptionalWithDefaults (defaults : ^def) (k : string) : ObjectReader<'a option> =
+            JsonObject.readOptionalWith Json.decode k
 
-        let inline readOptional (k: string) (jsonObject: JsonObject) : JsonResult<'a option> =
-            readOptionalWithDefaults Internal.ChironDefaults k jsonObject
+        let inline readOptional (k: string) : ObjectReader<'a option> =
+            readOptionalWithDefaults Internal.ChironDefaults k
 
-        let inline readChild (k: string) (jsonObject: JsonObject): JsonResult<'a> =
+        let inline readChild (k: string) : ObjectReader<'a> =
             let decode jsonObject = (^a : (static member Decode : JsonObject -> JsonResult<'a>) jsonObject)
-            JsonObject.find k jsonObject
-            |> JsonResult.bind (JsonResult.withPropertyTag k (ObjectReader.toJsonReader decode))
+            let readProperty = JsonResult.withPropertyTag k (ObjectReader.toJsonReader decode)
+            JsonObject.find k
+            |> JsonResult.compose readProperty
 
-        let inline readOptionalChild (k: string) (jsonObject: JsonObject): JsonResult<'a option> =
+        let inline readOptionalChild (k: string): ObjectReader<'a option> =
             let decode jsonObject = (^a : (static member Decode : JsonObject -> JsonResult<'a>) jsonObject)
-            JsonObject.tryFind k jsonObject
-            |> Option.map (JsonResult.withPropertyTag k (ObjectReader.toJsonReader decode))
-            |> function
+            let readProperty = JsonResult.withPropertyTag k (ObjectReader.toJsonReader decode)
+            let handleResult = function
                 | Some (Ok a) -> Ok (Some a)
                 | Some (Error e) -> Error e
                 | None -> Ok None
+            fun jObj ->
+                JsonObject.tryFind k jObj
+                |> Option.map readProperty
+                |> handleResult
 
         let inline readMixin (jsonObject: JsonObject): JsonResult<'a> =
             (^a : (static member Decode : JsonObject -> JsonResult<'a>) jsonObject)
