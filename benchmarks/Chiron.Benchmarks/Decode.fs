@@ -234,6 +234,101 @@ type Decoding () =
     member x.Version6_Operators () =
         (ChironObsolete.Mapping.Json.deserialize DecodeExamples.Obsolete.testJson : DecodeExamples.Obsolete.Operators.Testing) |> ignore
 
+module E = Chiron.Serialization.Json.Encode
+module D = Chiron.Serialization.Json.Decode
+
+[<Config(typeof<CoreConfig>)>]
+type DecodeList () =
+    let testList =
+        E.listWith E.number
+            [ for i in 1..10000 do
+                yield string i ]
+
+    let array = D.arrayWith D.number
+    let arrayAlt = D.arrayWithAlt D.number
+    let arrayAlt2 = D.arrayWithAlt2 D.number
+
+    let list = D.listWith D.number
+    let listAlt = arrayAlt |> JsonReader.map List.ofArray
+    let listAlt2 = arrayAlt2 |> JsonReader.map List.ofArray
+
+    [<Setup>]
+    member x.Setup() =
+        let result = listAlt2 testList
+        match result with
+        | JsonResult.Ok _ -> ()
+        | _ -> failwith (JsonResult.summarize result)
+
+    [<Benchmark>]
+    member x.Current_To_Array () =
+        array testList
+
+    [<Benchmark>]
+    member x.Current_To_List () =
+        list testList
+
+    [<Benchmark>]
+    member x.Alt_To_Array () =
+        arrayAlt testList
+
+    [<Benchmark>]
+    member x.Alt_To_List () =
+        listAlt testList
+
+    [<Benchmark>]
+    member x.Alt2_To_Array () =
+        arrayAlt2 testList
+
+    [<Benchmark>]
+    member x.Alt2_To_List () =
+        listAlt2 testList
+
+[<Config(typeof<CoreConfig>)>]
+type DecodeListWithErrors () =
+    let testList =
+        E.listWith E.string
+            [ for i in 1..10000 do
+                yield (string i + "λ") ]
+
+    let array = D.arrayWith D.number
+    let arrayAlt = D.arrayWithAlt D.number
+    let arrayAlt2 = D.arrayWithAlt2 D.number
+
+    let list = D.listWith D.number
+    let listAlt = arrayAlt |> JsonReader.map List.ofArray
+    let listAlt2 = arrayAlt2 |> JsonReader.map List.ofArray
+
+    [<Setup>]
+    member x.Setup() =
+        let result = listAlt2 testList
+        match result with
+        | JsonResult.Ok _ -> failwith "Should be failures, but were none"
+        | _ -> ()
+
+    [<Benchmark>]
+    member x.Current_To_Array () =
+        array testList
+
+    [<Benchmark>]
+    member x.Current_To_List () =
+        list testList
+
+    [<Benchmark>]
+    member x.Alt_To_Array () =
+        arrayAlt testList
+
+    [<Benchmark>]
+    member x.Alt_To_List () =
+        listAlt testList
+
+    [<Benchmark>]
+    member x.Alt2_To_Array () =
+        arrayAlt2 testList
+
+    [<Benchmark>]
+    member x.Alt2_To_List () =
+        listAlt2 testList
+
 // module Method1 =
 //     open Chiron.ObjectReader.Operators
 

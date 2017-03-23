@@ -1101,6 +1101,80 @@ module Serialization =
                 | Json.Array a -> Ok a
                 | json -> JsonResult.typeMismatch JsonMemberType.Array json
 
+            let singletonArrayλ x = [|x|]
+
+            let arrayWithQuickAlt (decode: JsonReader<'a>) : JsonReader<'a[]> =
+                let rec loop (agg: 'a[]) idx lastX xs =
+                    let xR = JsonResult.withIndexTag idx decode lastX
+                    match xR with
+                    | JsonResult.Ok x ->
+                        agg.[int idx] <- x
+                        match xs with
+                        | [] -> JsonResult.Ok agg
+                        | nextX::nextXs -> loop agg (idx + 1u) nextX nextXs
+                    | JsonResult.Error err ->
+                        JsonResult.Error err
+                let singletonArrayλ = singletonArrayλ
+                list >=> function
+                | [] -> JsonResult.Ok [||]
+                | [x] -> decode x |> JsonResult.map singletonArrayλ
+                | x::xs -> loop (Array.zeroCreate (List.length xs + 1)) 0u x xs
+
+            let arrayWithAlt (decode: JsonReader<'a>) : JsonReader<'a[]> =
+                let rec loop (aggR: JsonResult<'a[]>) idx lastX xs =
+                    let xR = JsonResult.withIndexTag idx decode lastX
+                    match aggR, xR with
+                    | JsonResult.Ok agg, JsonResult.Ok x ->
+                        agg.[int idx] <- x
+                        match xs with
+                        | [] -> JsonResult.Ok agg
+                        | nextX::nextXs -> loop aggR (idx + 1u) nextX nextXs
+                    | JsonResult.Error errs1, JsonResult.Error errs2 ->
+                        let nextAggR = JsonResult.Error (errs1 @ errs2)
+                        match xs with
+                        | [] -> nextAggR
+                        | nextX::nextXs -> loop nextAggR (idx + 1u) nextX nextXs
+                    | JsonResult.Error errs, _
+                    | _, JsonResult.Error errs ->
+                        let nextAggR = JsonResult.Error errs
+                        match xs with
+                        | [] -> nextAggR
+                        | nextX::nextXs -> loop nextAggR (idx + 1u) nextX nextXs
+                let singletonArrayλ = singletonArrayλ
+                list >=> function
+                | [] -> JsonResult.Ok [||]
+                | [x] -> decode x |> JsonResult.map singletonArrayλ
+                | x::xs -> loop (Array.zeroCreate (List.length xs + 1) |> JsonResult.Ok) 0u x xs
+
+            let arrayWithAlt2 (decode: JsonReader<'a>) : JsonReader<'a[]> =
+                let idλ = (do ()); fun (x: JsonFailure list) -> x
+                let singletonArrayλ = (do ()); fun (x: 'a) -> [|x|]
+                let rec loop (aggR: Result<'a[],JsonFailure list list>) idx lastX xs =
+                    let xR = JsonResult.withIndexTag idx decode lastX
+                    match aggR, xR with
+                    | Result.Ok agg, JsonResult.Ok x ->
+                        agg.[int idx] <- x
+                        match xs with
+                        | [] -> JsonResult.Ok agg
+                        | nextX::nextXs -> loop aggR (idx + 1u) nextX nextXs
+                    | Result.Error errss, JsonResult.Error errs ->
+                        let nextErrss = errs :: errss
+                        match xs with
+                        | [] -> JsonResult.Error (List.rev nextErrss |> List.collect idλ)
+                        | nextX::nextXs -> loop (Result.Error nextErrss) (idx + 1u) nextX nextXs
+                    | Result.Error errss, _ ->
+                        match xs with
+                        | [] -> JsonResult.Error (List.rev errss |> List.collect idλ)
+                        | nextX::nextXs -> loop aggR (idx + 1u) nextX nextXs
+                    | _, JsonResult.Error errs ->
+                        match xs with
+                        | [] -> JsonResult.Error errs
+                        | nextX::nextXs -> loop (Result.Error [errs]) (idx + 1u) nextX nextXs
+                list >=> function
+                | [] -> JsonResult.Ok [||]
+                | [x] -> decode x |> JsonResult.map singletonArrayλ
+                | x::xs -> loop (Array.zeroCreate (List.length xs + 1) |> Result.Ok) 0u x xs
+
             let listInnerQuick (decode: JsonReader<'a>) (init: 's) (fold: 'a -> 's -> 's) : Json list -> JsonResult<'s> =
                 let folder json (sR, i) =
                     let next =
