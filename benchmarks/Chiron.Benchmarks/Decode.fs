@@ -7,9 +7,11 @@ open System.Text
 module DecodeExamples =
     module E = Chiron.Serialization.Json.Encode
     let testJson =
-        E.propertyList
+        JsonObject.ofPropertyList
             [ "2", E.bool true
               "3", E.int 42 ]
+        |> JsonObject.optimizeRead
+        |> E.jsonObject
     module Inline =
         module Explicit =
             module ComputationExpression =
