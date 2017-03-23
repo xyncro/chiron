@@ -1080,6 +1080,21 @@ module Serialization =
             let jsonObjectWith (decode: ObjectReader<'a>) : JsonReader<'a> =
                 jsonObject >=> decode
 
+            let propertyList : JsonReader<(string * Json) list> =
+                jsonObject >-> JsonObject.toPropertyList
+
+            let propertyListWithQuick (decode: JsonReader<'a>) : JsonReader<(string * 'a) list> =
+                jsonObject >=> JsonObject.toPropertyListWithQuick decode
+
+            let propertyListWith (decode: JsonReader<'a>) : JsonReader<(string * 'a) list> =
+                jsonObject >=> JsonObject.toPropertyListWith decode
+
+            let propertyListWithCustomKeyQuick (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) : JsonReader<('k * 'v) list> =
+                jsonObject >=> JsonObject.toPropertyListWithCustomKeyQuick parse decode
+
+            let propertyListWithCustomKey (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) : JsonReader<('k * 'v) list> =
+                jsonObject >=> JsonObject.toPropertyListWithCustomKey parse decode
+
             let list : JsonReader<Json list> =
                 do ()
                 function
