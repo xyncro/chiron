@@ -93,7 +93,7 @@ module JsonFailure =
     let rec toString = function
         | Tagged (t, (Tagged (PropertyTag(_),_) as f)) -> System.String.Concat (JsonTag.toString t, ".", toString f)
         | Tagged (t, (Tagged _ as f)) -> System.String.Concat (JsonTag.toString t, toString f)
-        | Tagged (p,f) -> System.String.Concat (p, ": ", toString f)
+        | Tagged (t,f) -> System.String.Concat (JsonTag.toString t, ": ", toString f)
         | NoInput -> "No input was provided"
         | PropertyNotFound -> "Failed to find expected property"
         | TypeMismatch (e,a) -> System.String.Concat ("Expected to find ", JsonMemberType.describe e, ", but instead found ", JsonMemberType.describe a)
