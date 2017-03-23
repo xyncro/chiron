@@ -237,6 +237,142 @@ type Decoding () =
 module E = Chiron.Serialization.Json.Encode
 module D = Chiron.Serialization.Json.Decode
 
+module ListDecoders =
+    let inline (>=>) decodeA decodeB = JsonResult.Operators.(>=>) decodeA decodeB
+    let inline (>->) decode convert = JsonResult.Operators.(>->) decode convert
+
+    let listInner  (decode: JsonReader<'a>) (init: 's) (fold: 'a -> 's -> 's) : Json list -> JsonResult<'s> =
+        let folder json (sR, i) =
+            let aR = JsonResult.withIndexTag i decode json
+            let next =
+                match sR, aR with
+                | Ok s, Ok a -> Ok (fold a s)
+                | Error errs, Error [err] -> Error (err :: errs)
+                | Error err1, Error err2 -> Error (err2 @ err1)
+                | Error errs, _
+                | _, Error errs -> Error errs
+            (next, i + 1u)
+        fun xs ->
+            List.foldBack folder xs (Ok init, 0u) |> fst
+
+    let fstλ<'a,'b> : ('a * 'b) -> 'a = (do ()); fun (a, _) -> a
+
+    let arrayFolder x (arr: 'a array, idx) =
+        arr.[idx] <- x
+        (arr, idx - 1)
+
+    let jsonListToArray inner decode =
+        let mapper = fstλ
+        fun jLst ->
+            let len = List.length jLst
+            inner decode (Array.zeroCreate len, len - 1) arrayFolder jLst
+            |> JsonResult.map mapper
+
+    let arrayWith (decode: JsonReader<'a>) : JsonReader<'a array> =
+        D.list >=> jsonListToArray listInner decode
+
+    let arrayWithAlt (decode: JsonReader<'a>) : JsonReader<'a[]> =
+        let rec loop (aggR: JsonResult<'a[]>) idx lastX xs =
+            let xR = JsonResult.withIndexTag idx decode lastX
+            match aggR, xR with
+            | JsonResult.Ok agg, JsonResult.Ok x ->
+                agg.[int idx] <- x
+                match xs with
+                | [] -> JsonResult.Ok agg
+                | nextX::nextXs -> loop aggR (idx + 1u) nextX nextXs
+            | JsonResult.Error errs1, JsonResult.Error errs2 ->
+                let nextAggR = JsonResult.Error (errs1 @ errs2)
+                match xs with
+                | [] -> nextAggR
+                | nextX::nextXs -> loop nextAggR (idx + 1u) nextX nextXs
+            | JsonResult.Error errs, _
+            | _, JsonResult.Error errs ->
+                let nextAggR = JsonResult.Error errs
+                match xs with
+                | [] -> nextAggR
+                | nextX::nextXs -> loop nextAggR (idx + 1u) nextX nextXs
+        let singletonArrayλ = (do ()); fun (x: 'a) -> [|x|]
+        D.list >=> function
+        | [] -> JsonResult.Ok [||]
+        | [x] -> decode x |> JsonResult.map singletonArrayλ
+        | x::xs -> loop (Array.zeroCreate (List.length xs + 1) |> JsonResult.Ok) 0u x xs
+
+    let arrayWithAlt2 (decode: JsonReader<'a>) : JsonReader<'a[]> =
+        let idλ = (do ()); fun (x: JsonFailure list) -> x
+        let singletonArrayλ = (do ()); fun (x: 'a) -> [|x|]
+        let rec loop (aggR: Result<'a[],JsonFailure list list>) idx lastX xs =
+            let xR = JsonResult.withIndexTag idx decode lastX
+            match aggR, xR with
+            | Result.Ok agg, JsonResult.Ok x ->
+                agg.[int idx] <- x
+                match xs with
+                | [] -> JsonResult.Ok agg
+                | nextX::nextXs -> loop aggR (idx + 1u) nextX nextXs
+            | Result.Error errss, JsonResult.Error errs ->
+                let nextErrss = errs :: errss
+                match xs with
+                | [] -> JsonResult.Error (List.rev nextErrss |> List.collect idλ)
+                | nextX::nextXs -> loop (Result.Error nextErrss) (idx + 1u) nextX nextXs
+            | Result.Error errss, _ ->
+                match xs with
+                | [] -> JsonResult.Error (List.rev errss |> List.collect idλ)
+                | nextX::nextXs -> loop aggR (idx + 1u) nextX nextXs
+            | _, JsonResult.Error errs ->
+                match xs with
+                | [] -> JsonResult.Error errs
+                | nextX::nextXs -> loop (Result.Error [errs]) (idx + 1u) nextX nextXs
+        D.list >=> function
+        | [] -> JsonResult.Ok [||]
+        | [x] -> decode x |> JsonResult.map singletonArrayλ
+        | x::xs -> loop (Array.zeroCreate (List.length xs + 1) |> Result.Ok) 0u x xs
+
+    let arrayWithAlt3 (decode: JsonReader<'a>) : JsonReader<'a[]> =
+        let idλ = (do ()); fun (x: JsonFailure list) -> x
+        let singletonArrayλ = (do ()); fun (x: 'a) -> [|x|]
+        let rec goodPath (agg: 'a[]) idx lastX xs =
+            match JsonResult.withIndexTag idx decode lastX with
+            | JsonResult.Ok x ->
+                agg.[int idx] <- x
+                match xs with
+                | [] -> JsonResult.Ok agg
+                | nextX::nextXs -> goodPath agg (idx + 1u) nextX nextXs
+            | JsonResult.Error errs ->
+                match xs with
+                | [] -> JsonResult.Error errs
+                | nextX::nextXs -> badPath [errs] (idx + 1u) nextX nextXs
+        and badPath (aggErrs: JsonFailure list list) idx lastX xs =
+            match JsonResult.withIndexTag idx decode lastX with
+            | JsonResult.Error errs ->
+                let nextErrss = errs::aggErrs
+                match xs with
+                | [] -> JsonResult.Error (List.rev nextErrss |> List.collect idλ)
+                | nextX::nextXs -> badPath nextErrss (idx + 1u) nextX nextXs
+            | _ ->
+                match xs with
+                | [] -> JsonResult.Error (List.rev aggErrs |> List.collect idλ)
+                | nextX::nextXs -> badPath aggErrs (idx + 1u) nextX nextXs
+        D.list >=> function
+        | [] -> JsonResult.Ok [||]
+        | [x] -> decode x |> JsonResult.map singletonArrayλ
+        | x::xs -> goodPath (Array.zeroCreate (List.length xs + 1)) 0u x xs
+
+    let arrayWithAlt3Quick (decode: JsonReader<'a>) : JsonReader<'a[]> =
+        let idλ = (do ()); fun (x: JsonFailure list) -> x
+        let singletonArrayλ = (do ()); fun (x: 'a) -> [|x|]
+        let rec goodPath (agg: 'a[]) idx lastX xs =
+            match JsonResult.withIndexTag idx decode lastX with
+            | JsonResult.Ok x ->
+                agg.[int idx] <- x
+                match xs with
+                | [] -> JsonResult.Ok agg
+                | nextX::nextXs -> goodPath agg (idx + 1u) nextX nextXs
+            | JsonResult.Error errs ->
+                JsonResult.Error errs
+        D.list >=> function
+        | [] -> JsonResult.Ok [||]
+        | [x] -> decode x |> JsonResult.map singletonArrayλ
+        | x::xs -> goodPath (Array.zeroCreate (List.length xs + 1)) 0u x xs
+
 [<Config(typeof<CoreConfig>)>]
 type DecodeList () =
     let testList =
@@ -244,44 +380,51 @@ type DecodeList () =
             [ for i in 1..10000 do
                 yield string i ]
 
-    let array = D.arrayWith D.number
-    let arrayAlt = D.arrayWithAlt D.number
-    let arrayAlt2 = D.arrayWithAlt2 D.number
+    // let array = ListDecoders.arrayWith D.number
+    // let arrayAlt = ListDecoders.arrayWithAlt D.number
+    let arrayAlt2 = ListDecoders.arrayWithAlt2 D.number
+    let arrayAlt3 = ListDecoders.arrayWithAlt3 D.number
 
-    let list = D.listWith D.number
-    let listAlt = arrayAlt |> JsonReader.map List.ofArray
-    let listAlt2 = arrayAlt2 |> JsonReader.map List.ofArray
+    // let list = D.listWith D.number
+    // let listAlt = arrayAlt |> JsonReader.map List.ofArray
+    // let listAlt2 = arrayAlt2 |> JsonReader.map List.ofArray
+    // let listAlt3 = arrayAlt3 |> JsonReader.map List.ofArray
 
     [<Setup>]
     member x.Setup() =
-        let result = listAlt2 testList
+        let result = arrayAlt3 testList
         match result with
         | JsonResult.Ok _ -> ()
         | _ -> failwith (JsonResult.summarize result)
 
-    [<Benchmark>]
-    member x.Current_To_Array () =
-        array testList
+    // [<Benchmark>]
+    // member x.Current_To_Array () =
+    //     array testList
 
-    [<Benchmark>]
-    member x.Current_To_List () =
-        list testList
+    // [<Benchmark>]
+    // member x.Current_To_List () =
+    //     list testList
 
-    [<Benchmark>]
-    member x.Alt_To_Array () =
-        arrayAlt testList
+    // [<Benchmark>]
+    // member x.Alt_To_Array () =
+    //     arrayAlt testList
 
-    [<Benchmark>]
-    member x.Alt_To_List () =
-        listAlt testList
+    // [<Benchmark>]
+    // member x.Alt_To_List () =
+    //     listAlt testList
 
     [<Benchmark>]
     member x.Alt2_To_Array () =
         arrayAlt2 testList
 
+    // [<Benchmark>]
+    // member x.Alt2_To_List () =
+    //     listAlt2 testList
+
     [<Benchmark>]
-    member x.Alt2_To_List () =
-        listAlt2 testList
+    member x.Alt3_To_Array () =
+        arrayAlt3 testList
+
 
 [<Config(typeof<CoreConfig>)>]
 type DecodeListWithErrors () =
@@ -290,44 +433,70 @@ type DecodeListWithErrors () =
             [ for i in 1..10000 do
                 yield (string i + "λ") ]
 
-    let array = D.arrayWith D.number
-    let arrayAlt = D.arrayWithAlt D.number
-    let arrayAlt2 = D.arrayWithAlt2 D.number
+    // let array = ListDecoders.arrayWith D.number
+    // let arrayAlt = ListDecoders.arrayWithAlt D.number
+    let arrayAlt2 = ListDecoders.arrayWithAlt2 D.number
+    let arrayAlt3 = ListDecoders.arrayWithAlt3 D.number
 
-    let list = D.listWith D.number
-    let listAlt = arrayAlt |> JsonReader.map List.ofArray
-    let listAlt2 = arrayAlt2 |> JsonReader.map List.ofArray
+    // let list = D.listWith D.number
+    // let listAlt = arrayAlt |> JsonReader.map List.ofArray
+    // let listAlt2 = arrayAlt2 |> JsonReader.map List.ofArray
+    // let listAlt3 = arrayAlt3 |> JsonReader.map List.ofArray
 
     [<Setup>]
     member x.Setup() =
-        let result = listAlt2 testList
+        let result = arrayAlt3 testList
         match result with
         | JsonResult.Ok _ -> failwith "Should be failures, but were none"
         | _ -> ()
 
-    [<Benchmark>]
-    member x.Current_To_Array () =
-        array testList
+    // [<Benchmark>]
+    // member x.Current_To_Array () =
+    //     array testList
 
-    [<Benchmark>]
-    member x.Current_To_List () =
-        list testList
+    // [<Benchmark>]
+    // member x.Current_To_List () =
+    //     list testList
 
-    [<Benchmark>]
-    member x.Alt_To_Array () =
-        arrayAlt testList
+    // [<Benchmark>]
+    // member x.Alt_To_Array () =
+    //     arrayAlt testList
 
-    [<Benchmark>]
-    member x.Alt_To_List () =
-        listAlt testList
+    // [<Benchmark>]
+    // member x.Alt_To_List () =
+    //     listAlt testList
 
     [<Benchmark>]
     member x.Alt2_To_Array () =
         arrayAlt2 testList
 
+    // [<Benchmark>]
+    // member x.Alt2_To_List () =
+    //     listAlt2 testList
+
     [<Benchmark>]
-    member x.Alt2_To_List () =
-        listAlt2 testList
+    member x.Alt3_To_Array () =
+        arrayAlt3 testList
+
+[<Config(typeof<CoreConfig>)>]
+type DecodeJsonObjectToPropertyList () =
+    let testObj =
+        let rec inner i jObj =
+            match i with
+            | 0u -> jObj
+            | _ -> JsonObject.add (string i) (E.uint32 i) jObj |> inner (i - 1u)
+        inner 10000u JsonObject.empty
+
+    let noTransfer = JsonObject.toPropertyListWithCustomKey JsonResult.Ok D.json
+    let transfer = JsonObject.toPropertyListWithCustomKeyAlt JsonResult.Ok D.json
+
+    [<Benchmark>]
+    member x.NoTransfer () =
+         noTransfer testObj
+
+    [<Benchmark>]
+    member x.WithTransfer () =
+        transfer testObj
 
 // module Method1 =
 //     open Chiron.ObjectReader.Operators
