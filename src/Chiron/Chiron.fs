@@ -498,23 +498,81 @@ module JsonObject =
 
     let propertyFolder (encode: JsonWriter<'a>) s (k,v) = (k, encode v) :: s
 
+    let toPropertyListWithCustomKeyQuick (parse: string -> JsonResult<'a>) (decode: JsonReader<'b>) = function
+        | WriteObject ps
+        | ReadObject (ps, _) ->
+            let rec inner agg lastK lastV ps =
+                let kR = JsonResult.withPropertyTag lastK parse lastK
+                match kR with
+                | JsonResult.Ok k ->
+                    let vR = JsonResult.withPropertyTag lastK decode lastV
+                    match vR with
+                    | JsonResult.Ok v ->
+                        match ps with
+                        | [] -> JsonResult.Ok ((k,v)::agg)
+                        | (nextK,nextV)::nextPs -> inner ((k,v)::agg) nextK nextV nextPs
+                    | JsonResult.Error errs->
+                        JsonResult.Error errs
+                | JsonResult.Error errs ->
+                    JsonResult.Error errs
+            match ps with
+            | [] -> JsonResult.Ok []
+            | (k,v)::ps -> inner [] k v ps
+    let toPropertyListWithCustomKey (parse: string -> JsonResult<'a>) (decode: JsonReader<'b>) = function
+        | WriteObject ps
+        | ReadObject (ps, _) ->
+            let rec inner agg lastK lastV ps =
+                let kR = JsonResult.withPropertyTag lastK parse lastK
+                let vR = JsonResult.withPropertyTag lastK decode lastV
+                match kR, vR with
+                | JsonResult.Ok k, JsonResult.Ok v ->
+                    match ps with
+                    | [] -> JsonResult.Ok ((k,v)::agg)
+                    | (nextK,nextV)::nextPs -> inner ((k,v)::agg) nextK nextV nextPs
+                | JsonResult.Error errs1, JsonResult.Error errs2 -> JsonResult.Error (errs1 @ errs2)
+                | JsonResult.Error errs, _
+                | _, JsonResult.Error errs -> JsonResult.Error errs
+            match ps with
+            | [] -> JsonResult.Ok []
+            | (initK,initV)::initPs -> inner [] initK initV initPs
+    let toPropertyListWithQuick (decode: JsonReader<'b>) =
+        toPropertyListWithCustomKeyQuick JsonResult.Ok decode
+    let toPropertyListWith (decode: JsonReader<'b>) =
+        toPropertyListWithCustomKey JsonResult.Ok decode
     let toPropertyList = function
-        | WriteObject ps -> ps
-        | ReadObject (ps, _) -> ps
+        | WriteObject ps -> List.rev ps
+        | ReadObject (ps, _) -> List.rev ps
 
+    let ofPropertyListWithCustomKey (toString: 'a -> string) (encode: JsonWriter<'b>) (ps: ('a * 'b) list): JsonObject =
+        let rec inner agg = function
+            | [] -> JsonObject.WriteObject agg
+            | (k,v) :: ps ->
+                inner ((toString k, encode v) :: agg) ps
+        inner [] ps
+    let ofPropertyListWith (encode: JsonWriter<'a>) (ps: (string * 'a) list): JsonObject =
+        ofPropertyListWithCustomKey id encode ps
     let ofPropertyList (ps: (string * Json) list): JsonObject =
         List.rev ps
         |> JsonObject.WriteObject
-    let ofPropertyListWith (encode: JsonWriter<'a>) (ps: (string * 'a) list): JsonObject =
-        List.fold (propertyFolder encode) [] ps
-        |> JsonObject.WriteObject
 
+    let toMapWithCustomKeyQuick (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) =
+        toPropertyListWithCustomKeyQuick parse decode
+        >> JsonResult.map Map.ofList
+    let toMapWithCustomKey (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) =
+        toPropertyListWithCustomKey parse decode
+        >> JsonResult.map Map.ofList
+    let toMapWithQuick (decode: JsonReader<'v>) =
+        toPropertyListWithQuick decode
+        >> JsonResult.map Map.ofList
+    let toMapWith (decode: JsonReader<'v>) =
+        toPropertyListWith decode
+        >> JsonResult.map Map.ofList
     let toMap = function
-        | WriteObject ps -> listToMap ps
+        | WriteObject ps -> List.rev ps |> Map.ofList
         | ReadObject (_, mps) -> mps
 
     let ofMap m = ReadObject (mapToList m, m)
-    let ofMapWith (encode: JsonWriter<'a>) (m: Map<string, 'a>): JsonObject=
+    let ofMapWith (encode: JsonWriter<'a>) (m: Map<string, 'a>): JsonObject =
         let newMap = Map.map (fun _ a -> encode a) m
         ReadObject (mapToList newMap, newMap)
     let ofMapWithCustomKey (toString: 'k -> string) (encode: JsonWriter<'v>) (m: Map<'k, 'v>): JsonObject=
