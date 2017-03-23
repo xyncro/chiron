@@ -224,8 +224,9 @@ module Json =
         let inline (<*>) a2Rb aR = Chiron.ObjectReader.Operators.(<*>) a2Rb aR
         let uri =
             D.string >=> JsonResult.fromThrowingConverter (fun str -> System.Uri(str, System.UriKind.RelativeOrAbsolute))
+        let regexFromString = JsonResult.fromThrowingConverter (fun str -> JsonRegex <| System.Text.RegularExpressions.Regex (str, System.Text.RegularExpressions.RegexOptions.ECMAScript))
         let regex =
-            D.string >=> JsonResult.fromThrowingConverter (fun str -> JsonRegex <| System.Text.RegularExpressions.Regex (str, System.Text.RegularExpressions.RegexOptions.ECMAScript))
+            D.string >=> regexFromString
         let boundaryType =
             D.bool >-> BoundaryType.ofExclusiveBool
         let jsonSchemaType =
@@ -255,7 +256,7 @@ module Json =
                 [ jsonSchemaRef >-> SchemaReference
                   jsonSchemaDefinitionDelayed >-> Schema ]
         and regexSchemaList =
-            D.jsonObject >-> (JsonObject.toPropertyList >> List.map (fun (k,v) -> E.list [E.string k; v]) >> E.list) >=> D.listWith (D.tuple2With regex jsonSchema)
+            D.propertyListWithCustomKey regexFromString jsonSchema
         and additionalElements =
             D.oneOf
                 [ D.bool >-> Allowed
