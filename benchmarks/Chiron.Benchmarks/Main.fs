@@ -14,11 +14,11 @@ let main argv =
     //         .Create(DefaultConfig.Instance)
     //         .With(ExecutionValidator.FailOnError)
     //         .With(JitOptimizationsValidator.FailOnError))
-    // let switcher = BenchmarkSwitcher thisAssembly
-    // let _ = switcher.Run argv
+    let switcher = BenchmarkSwitcher thisAssembly
+    let _ = switcher.Run argv
     //let x = BenchmarkRunner.Run<Chiron.Benchmarks.ParseSmallPayload>(BenchmarkDotNet.Configs.DefaultConfig.Instance.KeepBenchmarkFiles)
-    let _ = BenchmarkRunner.Run<Encoding>()
-    let _ = BenchmarkRunner.Run<Decoding>()
+    // let _ = BenchmarkRunner.Run<Encoding>()
+    // let _ = BenchmarkRunner.Run<Decoding>()
     // let _ = BenchmarkRunner.Run<ChironB.WriteString>()
     // let _ = BenchmarkRunner.Run<ParseTest>()
     //let _ = BenchmarkRunner.Run<SerializeTest>()
