@@ -151,11 +151,11 @@ module Json =
             if v = def then jObj
             else JO.writeWith encode k v jObj
         let rec jsonSchema =
-            let jsonSchemaDefinitionDelayed = fun x -> jsonSchemaDefinitionDelayed () x
+            (do ())
             function
             | EmptySchema -> E.jsonObject JsonObject.empty
             | SchemaReference sr -> schemaRef sr
-            | Schema sd -> jsonSchemaDefinitionDelayed sd
+            | Schema sd -> (jsonSchemaDefinitionDelayed : Lazy<JsonWriter<JsonSchemaDefinition>>).Force() sd
         and regexSchemaList =
             let folder =
                 (do ())
@@ -173,7 +173,7 @@ module Json =
         and dependencies = function
             | DependentSchema s -> jsonSchema s
             | DependentProperties dp -> E.listWith E.string dp
-        and jsonSchemaDefinitionDelayed () =
+        and jsonSchemaDefinitionDelayed = lazy (
             let getLimit = (do ()); fun {limit=l} -> l
             let getBoundType = (do ()); fun {boundaryType=bt} -> bt
             let stringList = E.listWith E.string
@@ -215,8 +215,8 @@ module Json =
                     |> writeUnlessDefaultWith jsonSchemaList [] "anyOf" jsd.anyOf
                     |> writeUnlessDefaultWith jsonSchemaList [] "oneOf" jsd.oneOf
                     |> JO.writeOptionalWith jsonSchema "not" jsd.not
-            JsonObject.buildWith objectWriter
-        let jsonSchemaDefinition = jsonSchemaDefinitionDelayed ()
+            JsonObject.buildWith objectWriter)
+        let jsonSchemaDefinition = jsonSchemaDefinitionDelayed.Force()
     module Decode =
         let inline (>=>) decoderA decoderB = Chiron.JsonResult.Operators.(>=>) decoderA decoderB
         let inline (>->) decoder mapper = Chiron.JsonResult.Operators.(>->) decoder mapper
@@ -251,10 +251,10 @@ module Json =
                 JsonResult.map D.mkTuple2 (decodeA a)
                 |> JsonResult.applyDelay decodeB b
         let rec jsonSchema =
-            let jsonSchemaDefinitionDelayed = fun x -> jsonSchemaDefinitionDelayed () x
+            let jsonSchemaDefinition = (fun json -> (jsonSchemaDefinitionDelayed : Lazy<JsonReader<JsonSchemaDefinition>>).Force() json)
             D.oneOf
                 [ jsonSchemaRef >-> SchemaReference
-                  jsonSchemaDefinitionDelayed >-> Schema ]
+                  jsonSchemaDefinition >-> Schema ]
         and regexSchemaList =
             D.propertyListWithCustomKey regexFromString jsonSchema
         and additionalElements =
@@ -269,7 +269,7 @@ module Json =
             D.oneOf
                 [ D.listWith D.string >-> DependentProperties
                   jsonSchema >-> DependentSchema ]
-        and jsonSchemaDefinitionDelayed () =
+        and jsonSchemaDefinitionDelayed = lazy (
             let readOrDefaultWith decode def key =
                 (Option.defaultValue def)
                 <!> JO.readOptionalWith decode key
@@ -344,8 +344,8 @@ module Json =
                 <*> readOrDefaultWith (D.listWith jsonSchema) [] "anyOf"
                 <*> readOrDefaultWith (D.listWith jsonSchema) [] "oneOf"
                 <*> JO.readOptionalWith jsonSchema "not"
-            ObjectReader.toJsonReader objectReader
-        let jsonSchemaDefinition = jsonSchemaDefinitionDelayed ()
+            ObjectReader.toJsonReader objectReader )
+        let jsonSchemaDefinition = jsonSchemaDefinitionDelayed.Force()
 
 module E = Json.Encode
 module D = Json.Decode
