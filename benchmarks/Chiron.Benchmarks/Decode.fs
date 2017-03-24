@@ -487,16 +487,11 @@ type DecodeJsonObjectToPropertyList () =
             | _ -> JsonObject.add (string i) (E.uint32 i) jObj |> inner (i - 1u)
         inner 10000u JsonObject.empty
 
-    let noTransfer = JsonObject.toPropertyListWithCustomKey JsonResult.Ok D.json
-    let transfer = JsonObject.toPropertyListWithCustomKeyAlt JsonResult.Ok D.json
+    let objectReader = JsonObject.toPropertyListWithCustomKey JsonResult.Ok D.json
 
     [<Benchmark>]
-    member x.NoTransfer () =
-         noTransfer testObj
-
-    [<Benchmark>]
-    member x.WithTransfer () =
-        transfer testObj
+    member x.WithTransferFunction () =
+         objectReader testObj
 
 // module Method1 =
 //     open Chiron.ObjectReader.Operators
