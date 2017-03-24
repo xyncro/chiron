@@ -135,14 +135,6 @@ module JsonResult =
         match aR with
         | Ok a -> Ok (a2b a)
         | Error x -> Error x
-    let mapError (jfs2e: JsonFailure list -> 'e) (aR : JsonResult<'a>) : Result<'a,'e> =
-        match aR with
-        | Ok a -> Result.Ok a
-        | Error jfs -> Result.Error (jfs2e jfs)
-    let mapErrors (jf2e: JsonFailure -> 'e) (aR : JsonResult<'a>) : Result<'a,'e list> =
-        match aR with
-        | Ok a -> Result.Ok a
-        | Error jfs -> Result.Error (List.map jf2e jfs)
 
     let apply (aR: JsonResult<'a>) (a2Rb: JsonResult<'a -> 'b>) : JsonResult<'b> =
         match a2Rb, aR with
