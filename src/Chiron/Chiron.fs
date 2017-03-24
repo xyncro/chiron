@@ -195,6 +195,11 @@ module JsonResult =
             Ok (convert a)
         with e -> deserializationError e.Message
 
+    let fromListOfFailures (fails: JsonFailure list list): JsonResult<'a> =
+        List.rev fails
+        |> List.collect id
+        |> JsonResult.Error
+
     let getOrThrow : JsonResult<'a> -> 'a = function
         | Ok x -> x
         | Error [] -> failwith "JSON error"
@@ -248,6 +253,7 @@ module ObjectReader =
             | Ok _, Error e -> Error e
             | Error [e1], Error [e2] -> Error [e1; e2]
             | Error es1, Error es2 -> Error (es1 @ es2)
+            | Error e, _ | _, Error e -> Error e
 
     let map (a2b: 'a -> 'b) (aD: ObjectReader<'a>) : ObjectReader<'b> =
         fun json ->
@@ -501,107 +507,24 @@ module JsonObject =
     let toPropertyListWithCustomKeyQuick (parse: string -> JsonResult<'a>) (decode: JsonReader<'b>) = function
         | WriteObject ps
         | ReadObject (ps, _) ->
-            let rec inner agg lastK lastV ps =
-                let kR = JsonResult.withPropertyTag lastK parse lastK
-                match kR with
+            let rec loop agg lastK lastV ps =
+                match JsonResult.withPropertyTag lastK parse lastK with
                 | JsonResult.Ok k ->
-                    let vR = JsonResult.withPropertyTag lastK decode lastV
-                    match vR with
+                    match JsonResult.withPropertyTag lastK decode lastV with
                     | JsonResult.Ok v ->
+                        let nextAgg = (k,v)::agg
                         match ps with
-                        | [] -> JsonResult.Ok ((k,v)::agg)
-                        | (nextK,nextV)::nextPs -> inner ((k,v)::agg) nextK nextV nextPs
-                    | JsonResult.Error errs->
+                        | [] -> JsonResult.Ok nextAgg
+                        | (nextK,nextV)::nextPs -> loop nextAgg nextK nextV nextPs
+                    | JsonResult.Error errs ->
                         JsonResult.Error errs
                 | JsonResult.Error errs ->
                     JsonResult.Error errs
             match ps with
             | [] -> JsonResult.Ok []
-            | (k,v)::ps -> inner [] k v ps
-
-                // let idλ = (do ()); fun (x: JsonFailure list) -> x
-                // let singletonArrayλ = (do ()); fun (x: 'a) -> [|x|]
-                // let rec goodPath (agg: 'a[]) idx lastX xs =
-                //     match JsonResult.withIndexTag idx decode lastX with
-                //     | JsonResult.Ok x ->
-                //         agg.[int idx] <- x
-                //         match xs with
-                //         | [] -> JsonResult.Ok agg
-                //         | nextX::nextXs -> goodPath agg (idx + 1u) nextX nextXs
-                //     | JsonResult.Error errs ->
-                //         match xs with
-                //         | [] -> JsonResult.Error errs
-                //         | nextX::nextXs -> badPath [errs] (idx + 1u) nextX nextXs
-                // and badPath (aggErrs: JsonFailure list list) idx lastX xs =
-                //     match JsonResult.withIndexTag idx decode lastX with
-                //     | JsonResult.Error errs ->
-                //         let nextErrss = errs::aggErrs
-                //         match xs with
-                //         | [] -> JsonResult.Error (List.rev nextErrss |> List.collect idλ)
-                //         | nextX::nextXs -> badPath nextErrss (idx + 1u) nextX nextXs
-                //     | _ ->
-                //         match xs with
-                //         | [] -> JsonResult.Error (List.rev aggErrs |> List.collect idλ)
-                //         | nextX::nextXs -> badPath aggErrs (idx + 1u) nextX nextXs
-                // list >=> function
-                // | [] -> JsonResult.Ok [||]
-                // | [x] -> decode x |> JsonResult.map singletonArrayλ
-                // | x::xs -> goodPath (Array.zeroCreate (List.length xs + 1)) 0u x xs
-
+            | (initK,initV)::initPs -> loop [] initK initV initPs
 
     let toPropertyListWithCustomKey (parse: string -> JsonResult<'a>) (decode: JsonReader<'b>) =
-        let idλ = (do ()); fun (x: JsonFailure list) -> x
-        function
-        | WriteObject ps
-        | ReadObject (ps, _) ->
-            let rec goodPath agg lastK lastV ps =
-                let kR = JsonResult.withPropertyTag lastK parse lastK
-                let vR = JsonResult.withPropertyTag lastK decode lastV
-                match kR, vR with
-                | JsonResult.Ok k, JsonResult.Ok v ->
-                    let nextAgg = (k,v)::agg
-                    match ps with
-                    | [] -> JsonResult.Ok nextAgg
-                    | (nextK,nextV)::nextPs -> goodPath nextAgg nextK nextV nextPs
-                | JsonResult.Error errs1, JsonResult.Error errs2 ->
-                    let aggErrs = [errs2;errs1]
-                    match ps with
-                    | [] -> handleBadExit aggErrs
-                    | (nextK,nextV)::nextPs -> badPath aggErrs nextK nextV nextPs
-                | JsonResult.Error errs, _
-                | _, JsonResult.Error errs ->
-                    let aggErrs = [errs]
-                    match ps with
-                    | [] -> handleBadExit aggErrs
-                    | (nextK,nextV)::nextPs -> badPath aggErrs nextK nextV nextPs
-            and badPath (aggErrs: JsonFailure list list) lastK lastV ps =
-                let kR = JsonResult.withPropertyTag lastK parse lastK
-                let vR = JsonResult.withPropertyTag lastK decode lastV
-                match kR, vR with
-                | JsonResult.Ok k, JsonResult.Ok v ->
-                    match ps with
-                    | [] -> handleBadExit aggErrs
-                    | (nextK,nextV)::nextPs -> badPath aggErrs nextK nextV nextPs
-                | JsonResult.Error errs1, JsonResult.Error errs2 ->
-                    let nextAggErrs = errs2::errs1::aggErrs
-                    match ps with
-                    | [] -> handleBadExit nextAggErrs
-                    | (nextK,nextV)::nextPs -> badPath nextAggErrs nextK nextV nextPs
-                | JsonResult.Error errs, _
-                | _, JsonResult.Error errs ->
-                    let nextAggErrs = errs::aggErrs
-                    match ps with
-                    | [] -> handleBadExit nextAggErrs
-                    | (nextK,nextV)::nextPs -> badPath nextAggErrs nextK nextV nextPs
-            and handleBadExit (aggErrs: JsonFailure list list) =
-                List.rev aggErrs
-                |> List.collect idλ
-                |> JsonResult.Error
-            match ps with
-            | [] -> JsonResult.Ok []
-            | (initK,initV)::initPs -> goodPath [] initK initV initPs
-
-    let toPropertyListWithCustomKeyAlt (parse: string -> JsonResult<'a>) (decode: JsonReader<'b>) =
         let idλ = (do ()); fun (x: JsonFailure list) -> x
         function
         | WriteObject ps
@@ -624,28 +547,63 @@ module JsonObject =
                 let kR = JsonResult.withPropertyTag lastK parse lastK
                 let vR = JsonResult.withPropertyTag lastK decode lastV
                 match kR, vR with
-                | JsonResult.Ok k, JsonResult.Ok v ->
-                    badPathTransfer aggErrs ps
                 | JsonResult.Error errs1, JsonResult.Error errs2 ->
                     badPathTransfer (errs2::errs1::aggErrs) ps
                 | JsonResult.Error errs, _
                 | _, JsonResult.Error errs ->
                     badPathTransfer (errs::aggErrs) ps
+                | _ ->
+                    badPathTransfer aggErrs ps
             and badPathTransfer aggErrs ps =
-                match ps with
-                | [] -> handleBadExit aggErrs
+                    match ps with
+                | [] -> JsonResult.fromListOfFailures aggErrs
                 | (nextK,nextV)::nextPs -> badPath aggErrs nextK nextV nextPs
-            and handleBadExit aggErrs =
-                List.rev aggErrs
-                |> List.collect idλ
-                |> JsonResult.Error
             match ps with
             | [] -> JsonResult.Ok []
             | (initK,initV)::initPs -> goodPath [] initK initV initPs
-    let toPropertyListWithQuick (decode: JsonReader<'b>) =
-        toPropertyListWithCustomKeyQuick JsonResult.Ok decode
+
+    let toPropertyListWithQuick (decode: JsonReader<'b>) = function
+        | WriteObject ps
+        | ReadObject (ps, _) ->
+            let rec loop agg k lastV ps =
+                match JsonResult.withPropertyTag k decode lastV with
+                | JsonResult.Ok v ->
+                    let nextAgg = (k,v)::agg
+                    match ps with
+                    | [] -> JsonResult.Ok nextAgg
+                    | (nextK,nextV)::nextPs -> loop nextAgg nextK nextV nextPs
+                | JsonResult.Error errs ->
+                    JsonResult.Error errs
+            match ps with
+            | [] -> JsonResult.Ok []
+            | (initK,initV)::initPs -> loop [] initK initV initPs
     let toPropertyListWith (decode: JsonReader<'b>) =
-        toPropertyListWithCustomKey JsonResult.Ok decode
+        let idλ = (do ()); fun (x: JsonFailure list) -> x
+        function
+        | WriteObject ps
+        | ReadObject (ps, _) ->
+            let rec goodPath agg k lastV ps =
+                match JsonResult.withPropertyTag k decode lastV with
+                | JsonResult.Ok v ->
+                    let nextAgg = (k,v)::agg
+                    match ps with
+                    | [] -> JsonResult.Ok nextAgg
+                    | (nextK,nextV)::nextPs -> goodPath nextAgg nextK nextV nextPs
+                | JsonResult.Error errs ->
+                    badPathTransfer [errs] ps
+            and badPath (aggErrs: JsonFailure list list) k lastV ps =
+                match JsonResult.withPropertyTag k decode lastV with
+                | JsonResult.Error errs ->
+                    badPathTransfer (errs::aggErrs) ps
+                | _ ->
+                    badPathTransfer aggErrs ps
+            and badPathTransfer aggErrs ps =
+                match ps with
+                | [] -> JsonResult.fromListOfFailures aggErrs
+                | (nextK,nextV)::nextPs -> badPath aggErrs nextK nextV nextPs
+            match ps with
+            | [] -> JsonResult.Ok []
+            | (initK,initV)::initPs -> goodPath [] initK initV initPs
     let toPropertyList = function
         | WriteObject ps -> List.rev ps
         | ReadObject (ps, _) -> List.rev ps
@@ -664,16 +622,16 @@ module JsonObject =
 
     let toMapWithCustomKeyQuick (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) =
         toPropertyListWithCustomKeyQuick parse decode
-        >> JsonResult.map Map.ofList
+        |> ObjectReader.map Map.ofList
     let toMapWithCustomKey (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) =
         toPropertyListWithCustomKey parse decode
-        >> JsonResult.map Map.ofList
+        |> ObjectReader.map Map.ofList
     let toMapWithQuick (decode: JsonReader<'v>) =
         toPropertyListWithQuick decode
-        >> JsonResult.map Map.ofList
+        |> ObjectReader.map Map.ofList
     let toMapWith (decode: JsonReader<'v>) =
         toPropertyListWith decode
-        >> JsonResult.map Map.ofList
+        |> ObjectReader.map Map.ofList
     let toMap = function
         | WriteObject ps -> List.rev ps |> Map.ofList
         | ReadObject (_, mps) -> mps
@@ -1170,16 +1128,20 @@ module Serialization =
                 | json -> JsonResult.typeMismatch JsonMemberType.Null json
 
             let oneOf (decoders: JsonReader<'a> list) : JsonReader<'a> =
-                let rec inner decoders (s: JsonResult<'a>) i (json: Json) =
-                    match s, decoders with
-                    | _, [] | Ok _, _ -> s
-                    | Error oldErrs, decode :: decoders ->
-                        let r = decode json
-                        match r with
-                        | Ok _ -> r
+                let rec failing decode decoders (aggErrs: JsonFailure list list) i (json: Json) =
+                    match JsonResult.withChoiceTag i decode json with
                         | Error errs ->
-                            inner decoders (Error (oldErrs @ (JsonFailure.tagList (ChoiceTag i) errs))) (i + 1u) json
-                inner decoders JsonResult.emptyError 0u
+                        let nextAggErrs = errs::aggErrs
+                        match decoders with
+                        | [] ->
+                            JsonResult.fromListOfFailures nextAggErrs
+                        | nextDecode::nextDecoders ->
+                            failing nextDecode nextDecoders nextAggErrs (i + 1u) json
+                    | goodResult -> goodResult
+                match decoders with
+                | [] -> fun json -> JsonResult.deserializationError "No decoders provided to oneOf"
+                | [decode] -> decode
+                | initDecode::initDecoders -> failing initDecode initDecoders [] 0u
 
             let jsonObject : JsonReader<JsonObject> =
                 JsonObject.decode
@@ -1239,19 +1201,16 @@ module Serialization =
                         | [] -> JsonResult.Ok agg
                         | nextX::nextXs -> goodPath agg (idx + 1u) nextX nextXs
                     | JsonResult.Error errs ->
-                        match xs with
-                        | [] -> JsonResult.Error errs
-                        | nextX::nextXs -> badPath [errs] (idx + 1u) nextX nextXs
+                        badPathTransfer [errs] idx xs
                 and badPath (aggErrs: JsonFailure list list) idx lastX xs =
                     match JsonResult.withIndexTag idx decode lastX with
                     | JsonResult.Error errs ->
-                        let nextErrss = errs::aggErrs
-                        match xs with
-                        | [] -> JsonResult.Error (List.rev nextErrss |> List.collect idλ)
-                        | nextX::nextXs -> badPath nextErrss (idx + 1u) nextX nextXs
+                        badPathTransfer (errs::aggErrs) idx xs
                     | _ ->
+                        badPathTransfer aggErrs idx xs
+                and badPathTransfer aggErrs idx xs =
                         match xs with
-                        | [] -> JsonResult.Error (List.rev aggErrs |> List.collect idλ)
+                    | [] -> JsonResult.fromListOfFailures aggErrs
                         | nextX::nextXs -> badPath aggErrs (idx + 1u) nextX nextXs
                 list >=> function
                 | [] -> JsonResult.Ok [||]
@@ -1286,70 +1245,18 @@ module Serialization =
             let map : JsonReader<Map<string,Json>> =
                 jsonObject >-> JsonObject.toMap
 
-            let deserKeyErr<'a> e = JsonFailure.DeserializationError (typeof<'a>, "Unable to parse key:" + e)
-            let mapInnerQuick (parseKey : string -> Result<'k,string>) (decode: JsonReader<'v>) (kvps: (string * Json) list): JsonResult<Map<'k,'v>> =
-                List.fold (fun sR (kStr,json) ->
-                    match sR with
-                    | Ok s ->
-                        let kR = parseKey kStr
-                        match kR with
-                        | Result.Ok k ->
-                            let vR = JsonResult.withPropertyTag kStr decode json
-                            match vR with
-                            | Ok v -> Ok (Map.add k v s)
-                            | Error e -> Error e
-                        | Result.Error e -> Error [deserKeyErr<'k> e]
-                    | Error e -> Error e) (Ok Map.empty) kvps
-
-            let mapInner (parseKey : string -> Result<'k,string>) (decode: JsonReader<'v>) (kvps: (string * Json) list): JsonResult<Map<'k,'v>> =
-                List.fold (fun sR (k,json) ->
-                    let kR = parseKey k
-                    let vR = JsonResult.withPropertyTag k decode json
-                    match sR, kR, vR with
-                    | Ok s, Result.Ok k, Ok v -> Ok (Map.add k v s)
-                    | Error errs, Result.Error errK, Error [errV] -> Error (errV :: (deserKeyErr<'k> errK) :: errs)
-                    | Error errs, Result.Error err, Ok _ -> Error (deserKeyErr<'k> err :: errs)
-                    | Error errs, Result.Ok _, Error [err] -> Error (err :: errs)
-                    | Error errs, Result.Error errK, Error errV -> Error (errV @ (deserKeyErr<'k> errK :: errs))
-                    | Error errs, _, _
-                    | _, _, Error errs -> Error errs
-                    | _, Result.Error err, _ -> Error [deserKeyErr<'k> err]) (Ok Map.empty) kvps
 
             let mapWithQuick (decode: JsonReader<'a>) : JsonReader<Map<string,'a>> =
-                let binder =
-                    fun jObj ->
-                        JsonObject.toPropertyList jObj
-                        |> mapInnerQuick Result.Ok decode
-                fun json ->
-                    jsonObject json
-                    |> JsonResult.bind binder
+                jsonObject >=> JsonObject.toPropertyListWithQuick decode >-> Map.ofList
 
             let mapWith (decode: JsonReader<'a>) : JsonReader<Map<string,'a>> =
-                let binder =
-                    fun jObj ->
-                        JsonObject.toPropertyList jObj
-                        |> mapInner Result.Ok decode
-                fun json ->
-                    jsonObject json
-                    |> JsonResult.bind binder
+                jsonObject >=> JsonObject.toPropertyListWith decode >-> Map.ofList
 
-            let mapWithCustomKeyQuick (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) : JsonReader<Map<'a,'b>> =
-                let binder =
-                    fun jObj ->
-                        JsonObject.toPropertyList jObj
-                        |> mapInnerQuick parseKey decode
-                fun json ->
-                    jsonObject json
-                    |> JsonResult.bind binder
+            let mapWithCustomKeyQuick (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) : JsonReader<Map<'k,'v>> =
+                jsonObject >=> JsonObject.toPropertyListWithCustomKeyQuick parse decode >-> Map.ofList
 
-            let mapWithCustomKey (parseKey: string -> Result<'a,string>) (decode: JsonReader<'b>) : JsonReader<Map<'a,'b>> =
-                let binder =
-                    fun jObj ->
-                        JsonObject.toPropertyList jObj
-                        |> mapInner parseKey decode
-                fun json ->
-                    jsonObject json
-                    |> JsonResult.bind binder
+            let mapWithCustomKey (parse: string -> JsonResult<'k>) (decode: JsonReader<'v>) : JsonReader<Map<'k,'v>> =
+                jsonObject >=> JsonObject.toPropertyListWithCustomKey parse decode >-> Map.ofList
 
             let listToTuple2 : Json list -> JsonResult<Json * Json>=
                 do ()
