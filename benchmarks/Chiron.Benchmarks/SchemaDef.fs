@@ -103,29 +103,8 @@ module JsonSchemaDefinition =
           dependencies = Map.empty; enum = []; ``type`` = []
           allOf = []; anyOf = []; oneOf = []; not = None }
 
-module JsonObject =
-    let dependent (primaryKey: string) (primaryReader: JsonReader<'a>) (dependentKey: string) (dependentReader: JsonReader<'b>) : ObjectReader<('a * 'b option) option> =
-        let primaryObjectReader = JO.readOptionalWith primaryReader primaryKey
-        let dependentObjectReader = JO.readOptionalWith dependentReader dependentKey
-        fun jObj ->
-            let aOR = primaryObjectReader jObj
-            let bOR = dependentObjectReader jObj
-            match aOR, bOR with
-            | JsonResult.Ok (Some a), JsonResult.Ok bO ->
-                JsonResult.Ok (Some (a, bO))
-            | JsonResult.Ok None, JsonResult.Ok (Some _) ->
-                JsonResult.Error [DeserializationError (typeof<'b>, sprintf "Property '%s' requires property '%s' to be specified" dependentKey primaryKey)]
-            | JsonResult.Ok None, JsonResult.Ok None ->
-                JsonResult.Ok None
-            | JsonResult.Error err1, JsonResult.Error err2 ->
-                JsonResult.Error (err1 @ err2)
-            | JsonResult.Error err, JsonResult.Ok _
-            | JsonResult.Ok _, JsonResult.Error err ->
-                JsonResult.Error err
-
-module JO = JsonObject
-
 module Json =
+    open Chiron.Operators
     module Encode =
         let uri (u: System.Uri) = E.string (u.ToString())
         let boundaryType (bt: BoundaryType) =
@@ -145,17 +124,14 @@ module Json =
             | jmts -> E.listWith jsonSchemaType jmts
         let schemaRef =
             let objectWriter (u: System.Uri) jObj =
-                jObj |> JO.writeWith uri "$ref" u
-            JsonObject.buildWith objectWriter
-        let inline writeUnlessDefaultWith encode def k v jObj =
-            if v = def then jObj
-            else JO.writeWith encode k v jObj
+                jObj |> E.required uri "$ref" u
+            E.buildWith objectWriter
         let rec jsonSchema =
             (do ())
             function
             | EmptySchema -> E.jsonObject JsonObject.empty
             | SchemaReference sr -> schemaRef sr
-            | Schema sd -> (jsonSchemaDefinitionDelayed : Lazy<JsonWriter<JsonSchemaDefinition>>).Force() sd
+            | Schema sd -> jsonSchemaDefinitionDelayed () sd
         and regexSchemaList =
             let folder =
                 (do ())
@@ -163,7 +139,7 @@ module Json =
                     JsonObject.add (JsonRegex.pattern r) (jsonSchema s) jObj
             let objectWriter rsl jObj =
                 List.foldBack folder rsl jObj
-            JsonObject.buildWith objectWriter
+            E.buildWith objectWriter
         and additionalElements = function
             | Allowed b -> E.bool b
             | ElementSchema s -> jsonSchema s
@@ -173,7 +149,7 @@ module Json =
         and dependencies = function
             | DependentSchema s -> jsonSchema s
             | DependentProperties dp -> E.listWith E.string dp
-        and jsonSchemaDefinitionDelayed = lazy (
+        and jsonSchemaDefinitionDelayed () =
             let getLimit = (do ()); fun {limit=l} -> l
             let getBoundType = (do ()); fun {boundaryType=bt} -> bt
             let stringList = E.listWith E.string
@@ -183,104 +159,109 @@ module Json =
             let objectWriter =
                 fun (jsd: JsonSchemaDefinition) jObj ->
                     jObj
-                    |> JO.writeOptionalWith uri "id" jsd.id
-                    |> JO.writeOptionalWith uri "$schema" jsd.``$schema``
-                    |> JO.writeOptionalWith E.string "title" jsd.title
-                    |> JO.writeOptionalWith E.string "description" jsd.description
-                    |> JO.writeOptionalWith E.json "default" jsd.``default``
-                    |> JO.writeOptionalWith E.decimal "multipleOf" jsd.multipleOf
-                    |> JO.writeOptionalWith E.decimal "maximum" (jsd.maximum |> Option.map getLimit)
-                    |> writeUnlessDefaultWith boundaryType Inclusive "exclusiveMaximum" (jsd.minimum |> Option.map getBoundType |> Option.defaultValue Inclusive)
-                    |> JO.writeOptionalWith E.decimal "minimum" (jsd.minimum |> Option.map getLimit)
-                    |> writeUnlessDefaultWith boundaryType Inclusive "exclusiveMinimum" (jsd.minimum |> Option.map getBoundType |> Option.defaultValue Inclusive)
-                    |> JO.writeOptionalWith E.uint64 "maxLength" jsd.maxLength
-                    |> writeUnlessDefaultWith E.uint64 0UL "minLength" jsd.minLength
-                    |> JO.writeOptionalWith regex "pattern" jsd.pattern
-                    |> writeUnlessDefaultWith additionalElements AdditionalElements.empty "additionalItems" jsd.additionalItems
-                    |> JO.writeOptionalWith arrayItemsSchema "items" jsd.items
-                    |> JO.writeOptionalWith E.uint64 "maxItems" jsd.maxItems
-                    |> writeUnlessDefaultWith E.uint64 0UL "minItems" jsd.minItems
-                    |> writeUnlessDefaultWith E.bool false "uniqueItems" jsd.uniqueItems
-                    |> JO.writeOptionalWith E.uint64 "maxProperties" jsd.maxProperties
-                    |> writeUnlessDefaultWith E.uint64 0UL "minProperties" jsd.minProperties
-                    |> writeUnlessDefaultWith stringList [] "required" jsd.required
-                    |> writeUnlessDefaultWith additionalElements AdditionalElements.empty "additionalProperties" jsd.additionalProperties
-                    |> writeUnlessDefaultWith jsonSchemaMap Map.empty "definitions" jsd.definitions
-                    |> writeUnlessDefaultWith jsonSchemaMap Map.empty "properties" jsd.properties
-                    |> writeUnlessDefaultWith regexSchemaList [] "patternProperties" jsd.patternProperties
-                    |> writeUnlessDefaultWith dependenciesMap Map.empty "dependencies" jsd.dependencies
-                    |> writeUnlessDefaultWith E.list [] "enum" jsd.enum
-                    |> writeUnlessDefaultWith jsonSchemaTypeOrTypes [] "type" jsd.``type``
-                    |> writeUnlessDefaultWith jsonSchemaList [] "allOf" jsd.allOf
-                    |> writeUnlessDefaultWith jsonSchemaList [] "anyOf" jsd.anyOf
-                    |> writeUnlessDefaultWith jsonSchemaList [] "oneOf" jsd.oneOf
-                    |> JO.writeOptionalWith jsonSchema "not" jsd.not
-            JsonObject.buildWith objectWriter)
-        let jsonSchemaDefinition = jsonSchemaDefinitionDelayed.Force()
+                    |> E.optional uri "id" jsd.id
+                    |> E.optional uri "$schema" jsd.``$schema``
+                    |> E.optional E.string "title" jsd.title
+                    |> E.optional E.string "description" jsd.description
+                    |> E.optional E.json "default" jsd.``default``
+                    |> E.optional E.decimal "multipleOf" jsd.multipleOf
+                    |> E.optional E.decimal "maximum" (jsd.maximum |> Option.map getLimit)
+                    |> E.ifNotEqual Inclusive boundaryType "exclusiveMaximum" (jsd.minimum |> Option.map getBoundType |> Option.defaultValue Inclusive)
+                    |> E.optional E.decimal "minimum" (jsd.minimum |> Option.map getLimit)
+                    |> E.ifNotEqual Inclusive boundaryType "exclusiveMinimum" (jsd.minimum |> Option.map getBoundType |> Option.defaultValue Inclusive)
+                    |> E.optional E.uint64 "maxLength" jsd.maxLength
+                    |> E.ifNotEqual 0UL E.uint64 "minLength" jsd.minLength
+                    |> E.optional regex "pattern" jsd.pattern
+                    |> E.ifNotEqual AdditionalElements.empty additionalElements "additionalItems" jsd.additionalItems
+                    |> E.optional arrayItemsSchema "items" jsd.items
+                    |> E.optional E.uint64 "maxItems" jsd.maxItems
+                    |> E.ifNotEqual 0UL E.uint64 "minItems" jsd.minItems
+                    |> E.ifNotEqual false E.bool "uniqueItems" jsd.uniqueItems
+                    |> E.optional E.uint64 "maxProperties" jsd.maxProperties
+                    |> E.ifNotEqual 0UL E.uint64 "minProperties" jsd.minProperties
+                    |> E.ifNotEqual [] stringList "required" jsd.required
+                    |> E.ifNotEqual AdditionalElements.empty additionalElements "additionalProperties" jsd.additionalProperties
+                    |> E.ifNotEqual Map.empty jsonSchemaMap "definitions" jsd.definitions
+                    |> E.ifNotEqual Map.empty jsonSchemaMap "properties" jsd.properties
+                    |> E.ifNotEqual [] regexSchemaList "patternProperties" jsd.patternProperties
+                    |> E.ifNotEqual Map.empty dependenciesMap "dependencies" jsd.dependencies
+                    |> E.ifNotEqual [] E.list "enum" jsd.enum
+                    |> E.ifNotEqual [] jsonSchemaTypeOrTypes "type" jsd.``type``
+                    |> E.ifNotEqual [] jsonSchemaList "allOf" jsd.allOf
+                    |> E.ifNotEqual [] jsonSchemaList "anyOf" jsd.anyOf
+                    |> E.ifNotEqual [] jsonSchemaList "oneOf" jsd.oneOf
+                    |> E.optional jsonSchema "not" jsd.not
+            E.buildWith objectWriter
+        let jsonSchemaDefinition = jsonSchemaDefinitionDelayed ()
+
     module Decode =
-        let inline (>=>) decoderA decoderB = Chiron.JsonResult.Operators.(>=>) decoderA decoderB
-        let inline (>->) decoder mapper = Chiron.JsonResult.Operators.(>->) decoder mapper
-        let inline (<!>) a2b aR = Chiron.ObjectReader.Operators.(<!>) a2b aR
-        let inline (<*>) a2Rb aR = Chiron.ObjectReader.Operators.(<*>) a2Rb aR
+        let dependent (primaryKey: string) (primaryReader: Decoder<Json,'a>) (dependentKey: string) (dependentReader: Decoder<Json,'b>) : Decoder<JsonObject,('a * 'b option) option> =
+            let primaryObjectReader = D.optional primaryReader primaryKey
+            let dependentObjectReader = D.optional dependentReader dependentKey
+            fun jObj ->
+                let aOR = primaryObjectReader jObj
+                let bOR = dependentObjectReader jObj
+                match aOR, bOR with
+                | JPass (Some a), JPass bO ->
+                    JsonResult.pass (Some (a, bO))
+                | JPass None, JPass (Some _) ->
+                    JsonResult.fail (FailureReason (DeserializationError (typeof<'b>, sprintf "Property '%s' requires property '%s' to be specified" dependentKey primaryKey)))
+                | JPass None, JPass None ->
+                    JsonResult.pass None
+                | JFail err1, JFail err2 ->
+                    JsonResult.fail (JsonFailure.mappend err1 err2)
+                | JFail err, JPass _
+                | JPass _, JFail err ->
+                    JsonResult.fail err
+
         let uri =
-            D.string >=> JsonResult.fromThrowingConverter (fun str -> System.Uri(str, System.UriKind.RelativeOrAbsolute))
-        let regexFromString = JsonResult.fromThrowingConverter (fun str -> JsonRegex <| System.Text.RegularExpressions.Regex (str, System.Text.RegularExpressions.RegexOptions.ECMAScript))
+            D.string >=> Chiron.Decoder.fromThrowingConverter (fun str -> System.Uri(str, System.UriKind.RelativeOrAbsolute))
+        let regexFromString = Chiron.Decoder.fromThrowingConverter (fun str -> JsonRegex <| System.Text.RegularExpressions.Regex (str, System.Text.RegularExpressions.RegexOptions.ECMAScript))
         let regex =
             D.string >=> regexFromString
         let boundaryType =
             D.bool >-> BoundaryType.ofExclusiveBool
         let jsonSchemaType =
             D.string >=> (function
-                | "object" -> JsonResult.Ok JsonSchemaType.Object
-                | "array" -> JsonResult.Ok JsonSchemaType.Array
-                | "string" -> JsonResult.Ok JsonSchemaType.String
-                | "number" -> JsonResult.Ok JsonSchemaType.Number
-                | "integer" -> JsonResult.Ok JsonSchemaType.Integer
-                | "boolean" -> JsonResult.Ok JsonSchemaType.Boolean
-                | "null" -> JsonResult.Ok JsonSchemaType.Null
+                | "object" -> JsonResult.pass JsonSchemaType.Object
+                | "array" -> JsonResult.pass JsonSchemaType.Array
+                | "string" -> JsonResult.pass JsonSchemaType.String
+                | "number" -> JsonResult.pass JsonSchemaType.Number
+                | "integer" -> JsonResult.pass JsonSchemaType.Integer
+                | "boolean" -> JsonResult.pass JsonSchemaType.Boolean
+                | "null" -> JsonResult.pass JsonSchemaType.Null
                 | _ -> JsonResult.deserializationError "Invalid JSON type; must be one of: object, array, number, integer, boolean, string, null")
         let jsonSchemaTypeOrTypes =
-            D.oneOf
-                [ D.listWith jsonSchemaType
-                  jsonSchemaType >-> (fun s -> [s]) ]
+            D.either
+                (D.listWith jsonSchemaType)
+                (jsonSchemaType >-> fun s -> [s])
         let jsonSchemaRef =
-            JO.readWith uri "$ref"
-            |> ObjectReader.toJsonReader
-        let pair decodeA decodeB =
-            fun (a, b) ->
-                JsonResult.map D.mkTuple2 (decodeA a)
-                |> JsonResult.applyDelay decodeB b
+            D.jsonObject >=> D.required uri "$ref"
         let rec jsonSchema =
-            let jsonSchemaDefinition = (fun json -> (jsonSchemaDefinitionDelayed : Lazy<JsonReader<JsonSchemaDefinition>>).Force() json)
-            D.oneOf
-                [ jsonSchemaRef >-> SchemaReference
-                  jsonSchemaDefinition >-> Schema ]
+            D.either
+                (jsonSchemaRef >-> SchemaReference)
+                (D.lazily jsonSchemaDefinitionDelayed >-> Schema)
         and regexSchemaList =
             D.propertyListWithCustomKey regexFromString jsonSchema
         and additionalElements =
-            D.oneOf
-                [ D.bool >-> Allowed
-                  jsonSchema >-> ElementSchema ]
+            D.either
+                (D.bool >-> Allowed)
+                (jsonSchema >-> ElementSchema)
         and arrayItemsSchema =
-            D.oneOf
-                [ jsonSchema >-> ItemsSchema
-                  D.listWith jsonSchema >-> TupleSchema ]
+            D.either
+                (jsonSchema >-> ItemsSchema)
+                (D.listWith jsonSchema >-> TupleSchema)
         and dependencies =
-            D.oneOf
-                [ D.listWith D.string >-> DependentProperties
-                  jsonSchema >-> DependentSchema ]
+            D.either
+                (D.listWith D.string >-> DependentProperties)
+                (jsonSchema >-> DependentSchema)
         and jsonSchemaDefinitionDelayed = lazy (
-            let readOrDefaultWith decode def key =
-                (Option.defaultValue def)
-                <!> JO.readOptionalWith decode key
             let toBoundaryType =
                 Option.map (fun (m, mO) -> { limit = m; boundaryType = mO |> Option.defaultValue Inclusive })
             let readMaximum =
-                toBoundaryType
-                <!> JO.dependent "maximum" D.decimal "exclusiveMaximum" boundaryType
+                dependent "maximum" D.decimal "exclusiveMaximum" boundaryType >-> toBoundaryType
             let readMinimum =
-                toBoundaryType
-                <!> JO.dependent "minimum" D.decimal "exclusiveMinimum" boundaryType
+                dependent "minimum" D.decimal "exclusiveMinimum" boundaryType >-> toBoundaryType
             let makeJsonSchemaDefinition schemaId schema title description def multipleOf maximum minimum maxLen minLen pattern additionalItems items maxItems minItems uniqueItems maxProps minProps required additionalProps defs props patternProps deps enum memType anyOf allOf oneOf not =
                 { id = schemaId
                   ``$schema`` = schema
@@ -314,37 +295,37 @@ module Json =
                   not = not }
             let objectReader =
                 makeJsonSchemaDefinition
-                <!> JO.readOptionalWith uri "id"
-                <*> JO.readOptionalWith uri "$schema"
-                <*> JO.readOptionalWith D.string "title"
-                <*> JO.readOptionalWith D.string "description"
-                <*> JO.readOptionalWith D.json "default"
-                <*> JO.readOptionalWith D.decimal "multipleOf"
+                <!> D.optional uri "id"
+                <*> D.optional uri "$schema"
+                <*> D.optional D.string "title"
+                <*> D.optional D.string "description"
+                <*> D.optional D.json "default"
+                <*> D.optional D.decimal "multipleOf"
                 <*> readMaximum
                 <*> readMinimum
-                <*> JO.readOptionalWith D.uint64 "maxLength"
-                <*> readOrDefaultWith D.uint64 0UL "minLength"
-                <*> JO.readOptionalWith regex "pattern"
-                <*> readOrDefaultWith additionalElements AdditionalElements.empty "additionalItems"
-                <*> JO.readOptionalWith arrayItemsSchema "items"
-                <*> JO.readOptionalWith D.uint64 "maxItems"
-                <*> readOrDefaultWith D.uint64 0UL "minItems"
-                <*> readOrDefaultWith D.bool false "uniqueItems"
-                <*> JO.readOptionalWith D.uint64 "maxProperties"
-                <*> readOrDefaultWith D.uint64 0UL "minProperties"
-                <*> readOrDefaultWith (D.listWith D.string) [] "required"
-                <*> readOrDefaultWith additionalElements AdditionalElements.empty "additionalProperties"
-                <*> readOrDefaultWith (D.mapWith jsonSchema) Map.empty "definitions"
-                <*> readOrDefaultWith (D.mapWith jsonSchema) Map.empty "properties"
-                <*> readOrDefaultWith regexSchemaList [] "patternProperties"
-                <*> readOrDefaultWith (D.mapWith dependencies) Map.empty "dependencies"
-                <*> readOrDefaultWith D.list [] "enum"
-                <*> readOrDefaultWith jsonSchemaTypeOrTypes [] "type"
-                <*> readOrDefaultWith (D.listWith jsonSchema) [] "allOf"
-                <*> readOrDefaultWith (D.listWith jsonSchema) [] "anyOf"
-                <*> readOrDefaultWith (D.listWith jsonSchema) [] "oneOf"
-                <*> JO.readOptionalWith jsonSchema "not"
-            ObjectReader.toJsonReader objectReader )
+                <*> D.optional D.uint64 "maxLength"
+                <*> (D.optional D.uint64 "minLength" >=> D.withDefault 0UL)
+                <*> D.optional regex "pattern"
+                <*> (D.optional additionalElements "additionalItems" >=> D.withDefault AdditionalElements.empty)
+                <*> D.optional arrayItemsSchema "items"
+                <*> D.optional D.uint64 "maxItems"
+                <*> (D.optional D.uint64 "minItems" >=> D.withDefault 0UL)
+                <*> (D.optional D.bool "uniqueItems" >=> D.withDefault false)
+                <*> D.optional D.uint64 "maxProperties"
+                <*> (D.optional D.uint64 "minProperties" >=> D.withDefault 0UL)
+                <*> (D.optional (D.listWith D.string) "required" >=> D.withDefault [])
+                <*> (D.optional additionalElements "additionalProperties" >=> D.withDefault AdditionalElements.empty)
+                <*> (D.optional (D.mapWith jsonSchema) "definitions" >=> D.withDefault Map.empty)
+                <*> (D.optional (D.mapWith jsonSchema) "properties" >=> D.withDefault Map.empty)
+                <*> (D.optional regexSchemaList "patternProperties" >=> D.withDefault [])
+                <*> (D.optional (D.mapWith dependencies) "dependencies" >=> D.withDefault Map.empty)
+                <*> (D.optional D.list "enum" >=> D.withDefault [])
+                <*> (D.optional jsonSchemaTypeOrTypes "type" >=> D.withDefault [])
+                <*> (D.optional (D.listWith jsonSchema) "allOf" >=> D.withDefault [])
+                <*> (D.optional (D.listWith jsonSchema) "anyOf" >=> D.withDefault [])
+                <*> (D.optional (D.listWith jsonSchema) "oneOf" >=> D.withDefault [])
+                <*> D.optional jsonSchema "not"
+            D.jsonObject >=> objectReader )
         let jsonSchemaDefinition = jsonSchemaDefinitionDelayed.Force()
 
 module E = Json.Encode
@@ -386,13 +367,16 @@ let jsonSchemaStr : string = loadJsonResourceAsString "swagger-schema"
 let parsedJson = Json.parse jsonSchemaStr |> JsonResult.getOrThrow
 let parsedSchema = D.jsonSchemaDefinition parsedJson |> JsonResult.getOrThrow
 
-// printfn "%A" parsedSchema
-// printfn "%s" (parsedSchema |> E.jsonSchemaDefinition |> Json.format)
-
 open BenchmarkDotNet.Attributes
 
 [<Config(typeof<CoreConfig>)>]
 type SwaggerSchema() =
+    [<Setup>]
+    member __.Setup() =
+        // printfn "%A" parsedSchema
+        // printfn "%s" (parsedSchema |> E.jsonSchemaDefinition |> Json.format)
+        ()
+
     [<Benchmark>]
     member __.Parse() =
         Json.parse jsonSchemaStr

@@ -6,17 +6,19 @@ open FsCheck
 open FsCheck.Xunit
 open Swensen.Unquote
 open Chiron
-open Chiron.ObjectReader.Operators
+open Chiron.Operators
 open Chiron.Testing
 
 module E = Json.Encode
+module EI = Inference.Json.Encode
 module D = Json.Decode
+module DI = Inference.Json.Decode
 
-let doRoundTripTestWith (encode: JsonWriter<'a>) (decode: JsonReader<'a>) (v : 'a) =
-    test <@ v |> encode |> Json.format |> Json.parse |> JsonResult.bind decode = Ok v @>
+let doRoundTripTestWith (encode: JsonEncoder<'a>) (decode: Decoder<Json,'a>) (v : 'a) =
+    test <@ v |> encode |> Json.format |> Json.parse |> JsonResult.bind decode = JPass v @>
 
-let inline doRoundTripTest (v : 'a) : _ when (^a or Inference.Internal.ChironDefaults) : (static member ToJson: ^a -> Json) and (^a or Inference.Internal.ChironDefaults) : (static member FromJson: ^a -> JsonReader<'a>) =
-    let (encode : JsonWriter<'a>),(decode : JsonReader<'a>) = Inference.Json.encode, Inference.Json.decode
+let inline doRoundTripTest (v : 'a) : _ when (^a or Inference.Internal.ChironDefaults) : (static member ToJson: ^a -> Json) and (^a or Inference.Internal.ChironDefaults) : (static member FromJson: ^a -> Decoder<Json,'a>) =
+    let (encode : JsonEncoder<'a>),(decode : Decoder<Json,'a>) = Inference.Json.encode, Inference.Json.decode
     doRoundTripTestWith encode decode v
 
 [<Property>]
@@ -85,7 +87,7 @@ let ``UTC DateTime can be round-tripped`` (UtcDateTime v) =
 
 [<Property>]
 let ``Deserialized DateTimes are UTC`` (v : System.DateTime) =
-    test <@ v |> E.dateTime |> Json.format |> Json.parse |> JsonResult.bind D.dateTime |> JsonResult.map (fun (dt : System.DateTime) -> dt.Kind) = Ok System.DateTimeKind.Utc @>
+    test <@ v |> E.dateTime |> Json.format |> Json.parse |> JsonResult.bind D.dateTime |> JsonResult.map (fun (dt : System.DateTime) -> dt.Kind) = JPass System.DateTimeKind.Utc @>
 
 [<Property>]
 let ``DateTimeOffset can be round-tripped`` (v : System.DateTimeOffset) =
@@ -109,21 +111,21 @@ module Json =
     module Encode =
         let testRecord x jObj =
             jObj
-            |> JsonObject.writeWith E.string "stringField" x.StringField
-            |> JsonObject.writeOptionalWith E.guid "guidField" x.GuidField
-            |> JsonObject.writeOptionalWith E.dateTimeOffset "dateTimeField" x.DateTimeField
-            |> JsonObject.writeWith (fun (cs : char array) -> System.String cs |> E.string) "charArrayField" x.CharArrayField
+            |> E.required E.string "stringField" x.StringField
+            |> E.optional E.guid "guidField" x.GuidField
+            |> E.optional E.dateTimeOffset "dateTimeField" x.DateTimeField
+            |> E.required (fun (cs : char array) -> System.String cs |> E.string) "charArrayField" x.CharArrayField
         let testRecordToJson x =
-            JsonObject.buildWith testRecord x
+            E.build testRecord x
     module Decode =
         let testRecord =
             (fun s g d c -> { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c })
-            <!> JsonObject.readWith D.string "stringField"
-            <*> JsonObject.readOptionalWith D.guid "guidField"
-            <*> JsonObject.readOptionalWith D.dateTimeOffset "dateTimeField"
-            <*> JsonObject.readWith (D.string >> JsonResult.map (fun s -> s.ToCharArray())) "charArrayField"
+            <!> D.required D.string "stringField"
+            <*> D.optional D.guid "guidField"
+            <*> D.optional D.dateTimeOffset "dateTimeField"
+            <*> D.required (D.string >> JsonResult.map (fun s -> s.ToCharArray())) "charArrayField"
         let testRecordFromJson =
-            ObjectReader.toJsonReader testRecord
+            D.jsonObject >=> testRecord
 
 type TestRecord with
     static member FromJson (_: TestRecord) = Json.Decode.testRecordFromJson
@@ -150,18 +152,18 @@ type TestUnion =
     static member ToJson (x: TestUnion) =
         let f x =
             match x with
-            | CaseWithTwoArgs (a1, a2) -> Inference.JsonObject.write "CaseWithTwoArgs" (a1, a2)
-            | CaseWithThreeArgs (a1, a2, a3) -> Inference.JsonObject.write "CaseWithThreeArgs" (a1, a2, a3)
-            | CaseWithFourArgs (a1, a2, a3, a4) -> Inference.JsonObject.write "CaseWithFourArgs" (a1, a2, a3, a4)
-            | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> Inference.JsonObject.write "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
-        JsonObject.buildWith f x
+            | CaseWithTwoArgs (a1, a2) -> EI.required "CaseWithTwoArgs" (a1, a2)
+            | CaseWithThreeArgs (a1, a2, a3) -> EI.required "CaseWithThreeArgs" (a1, a2, a3)
+            | CaseWithFourArgs (a1, a2, a3, a4) -> EI.required "CaseWithFourArgs" (a1, a2, a3, a4)
+            | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> EI.required "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
+        E.build f x
 
     static member FromJson (_ : TestUnion) =
         function
-        | Property "CaseWithTwoArgs" (a1, a2) as json -> Ok (CaseWithTwoArgs (a1, a2))
-        | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> Ok (CaseWithThreeArgs (a1, a2, a3))
-        | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> Ok (CaseWithFourArgs (a1, a2, a3, a4))
-        | Property "CaseWithFiveArgs" (a1, a2, a3, a4, a5) as json -> Ok (CaseWithFiveArgs (a1, a2, a3, a4, a5))
+        | Property "CaseWithTwoArgs" (a1, a2) as json -> JPass (CaseWithTwoArgs (a1, a2))
+        | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> JPass (CaseWithThreeArgs (a1, a2, a3))
+        | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> JPass (CaseWithFourArgs (a1, a2, a3, a4))
+        | Property "CaseWithFiveArgs" (a1, a2, a3, a4, a5) as json -> JPass (CaseWithFiveArgs (a1, a2, a3, a4, a5))
         | _ -> JsonResult.deserializationError "Couldn't find `CaseWithXXXArgs`"
 
 [<Property>]
