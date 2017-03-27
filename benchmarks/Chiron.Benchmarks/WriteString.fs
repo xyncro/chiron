@@ -84,7 +84,7 @@ module Accessory =
         else
             -1
 
-    let writeString (cs:string) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+    let writeStringAlt1 (cs:string) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
         let rec inner index =
             if index < cs.Length then
                 let nextEscapeIndex = cs.IndexOfAny(escapeChars, index)
@@ -100,7 +100,7 @@ module Accessory =
             else sb
         inner 0
 
-    let writeStringAlt (cs:string) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
+    let writeStringAlt2 (cs:string) (sb:System.Text.StringBuilder) : System.Text.StringBuilder =
         let rec escapeState index =
             append (escaped cs.[index]) sb |> ignore
             let nextIndex = index + 1
@@ -135,17 +135,17 @@ type WriteString () =
     [<Params("short", "medium", "mediumWithCommonEscapes", "mediumWithUncommonEscapes", "mediumWithAllEscapes", "long", "longWithCommonEscapes", "longWithUncommonEscapes", "longWithAllEscapes")>]
     member val String = "" with get, set
 
-    [<Benchmark>]
+    [<Benchmark(Baseline=true)>]
     member x.WriteString () =
         let sb = System.Text.StringBuilder()
-        writeString (getString x.String) sb
+        Chiron.Formatting.StringBuilder.writeString sb (getString x.String)
 
     [<Benchmark>]
-    member x.WriteStringAlt () =
+    member x.WriteStringAlt1 () =
         let sb = System.Text.StringBuilder()
-        writeStringAlt (getString x.String) sb
+        writeStringAlt1 (getString x.String) sb
 
-    // [<Benchmark>]
-    // member x.WriteStringByChar () =
-    //     let sb = System.Text.StringBuilder()
-    //     writeStringByChar (getString x.String) sb
+    [<Benchmark>]
+    member x.WriteStringAlt2 () =
+        let sb = System.Text.StringBuilder()
+        writeStringAlt2 (getString x.String) sb
