@@ -125,22 +125,14 @@ type Encoding () =
     member x.Version6_Operators () =
         ChironObsolete.Mapping.Json.serialize Examples.Obsolete.Operators.testObject
 
-module D = Samples.Json.Decode
+module E = Samples.Json.Encode
 
 [<Config(typeof<CoreConfig>)>]
-type DecodeMedium () =
+type EncodeMedium () =
     [<Benchmark>]
-    member x.DeserializeA () =
-        D.complexType Samples.Constants.jsons.[0]
+    member x.EncodeA () =
+        E.complexType Samples.Constants.objects.[0]
 
     [<Benchmark>]
-    member x.DeserializeB () =
-        D.complexType Samples.Constants.jsons.[1]
-
-    [<Benchmark>]
-    member x.DeserializeAWithError () =
-        D.childType Samples.Constants.jsons.[0]
-
-    [<Benchmark>]
-    member x.DeserializeBWithError () =
-        D.childType Samples.Constants.jsons.[1]
+    member x.EncodeB () =
+        E.complexType Samples.Constants.objects.[1]

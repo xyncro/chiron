@@ -335,3 +335,31 @@ type DecodeJsonObjectToPropertyList () =
     [<Benchmark>]
     member x.WithTransferFunction () =
          objectReader testObj
+
+module D = Samples.Json.Decode
+
+[<Config(typeof<CoreConfig>)>]
+type DecodeMedium () =
+    [<Benchmark>]
+    member x.DecodeA () =
+        D.complexType Samples.Constants.jsons.[0]
+
+    [<Benchmark>]
+    member x.DecodeB () =
+        D.complexType Samples.Constants.jsons.[1]
+
+    [<Benchmark>]
+    member x.DecodeC () =
+        D.complexType Samples.Constants.jsons.[2]
+
+    [<Benchmark>]
+    member x.DecodeAWithError () =
+        D.childType Samples.Constants.jsons.[0]
+
+    [<Benchmark>]
+    member x.DecodeBWithError () =
+        D.childType Samples.Constants.jsons.[1]
+
+    [<Benchmark>]
+    member x.DecodeCWithError () =
+        D.childType Samples.Constants.jsons.[2]
