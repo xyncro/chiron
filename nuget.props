@@ -10,5 +10,4 @@
     <RepositoryUrl>https://github.com/xyncro/chiron</RepositoryUrl>
     <PackageTags>$(PackageTags);functional;json;optics;f#;fsharp;serialization;rfc7159</PackageTags>
   </PropertyGroup>
-  <Import Condition="Exists('version.props')" Project="version.props"/>
 </Project>
