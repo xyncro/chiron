@@ -116,7 +116,7 @@ module Json =
             |> E.optional E.dateTimeOffset "dateTimeField" x.DateTimeField
             |> E.required (fun (cs : char array) -> System.String cs |> E.string) "charArrayField" x.CharArrayField
         let testRecordToJson x =
-            E.build testRecord x
+            E.buildWith testRecord x
     module Decode =
         let testRecord =
             (fun s g d c -> { StringField = s; GuidField = g; DateTimeField = d; CharArrayField = c })
@@ -156,7 +156,7 @@ type TestUnion =
             | CaseWithThreeArgs (a1, a2, a3) -> EI.required "CaseWithThreeArgs" (a1, a2, a3)
             | CaseWithFourArgs (a1, a2, a3, a4) -> EI.required "CaseWithFourArgs" (a1, a2, a3, a4)
             | CaseWithFiveArgs (a1, a2, a3, a4, a5) -> EI.required "CaseWithFiveArgs" (a1, a2, a3, a4, a5)
-        E.build f x
+        E.buildWith f x
 
     static member FromJson (_ : TestUnion) =
         function

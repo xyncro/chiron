@@ -433,7 +433,7 @@ module WithTestRecord =
                     |> E.required boolList "values" x.Values
                     |> E.required E.json "json" x.Json
         module Encode =
-            let test = E.build Mixin.test
+            let test = E.buildWith Mixin.test
         module Decode =
             let test =
                 let inner =
@@ -540,7 +540,7 @@ module WithTestUnion =
             <*> DI.required "twoble"
         let toJson = function
             | One s -> toJsonOne s
-            | Two (i, b) -> E.build encodeTwo (i, b)
+            | Two (i, b) -> E.buildWith encodeTwo (i, b)
         let fromJson =
             D.oneOf
                 [ fromJsonOne
