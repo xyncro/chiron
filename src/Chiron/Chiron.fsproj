@@ -1,6 +1,6 @@
 <Project Sdk="FSharp.NET.Sdk;Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net46;netstandard1.6</TargetFrameworks>
+    <TargetFrameworks>net45;netstandard1.6</TargetFrameworks>
     <VersionPrefix>7.0.0</VersionPrefix>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DefineConstants Condition="'$(UseStructResult)' == 'true'">$(DefineConstants);STRUCT_RESULT</DefineConstants>
