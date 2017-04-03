@@ -45,10 +45,6 @@ type ParseTest () =
     [<Params("error", "fparsec", "user", "prettyuser", "social")>]
     member val Name = "<null>" with get, set
 
-    [<Benchmark(Baseline=true)>]
-    member __.Chiron_Old () : ChironObsolete.Json =
-        ChironObsolete.Parsing.Json.parse jsonString
-
     [<Benchmark>]
     member __.Chiron_New () : Chiron.JsonResult<Chiron.Json> =
         Chiron.Parsing.Json.parse jsonString
@@ -57,17 +53,12 @@ type ParseTest () =
 type FormatTest () =
     let mutable jsonN = Chiron.Json.Null
 
-    let mutable jsonO = ChironObsolete.Json.Null ()
-
     [<Setup>]
     member this.Setup () =
         jsonN <-
             loadJsonResourceAsString this.Name
             |> Chiron.Parsing.Json.parse
             |> Chiron.JsonResult.getOrThrow
-        jsonO <-
-            loadJsonResourceAsString this.Name
-            |> ChironObsolete.Parsing.Json.parse
 
     [<Params("error", "fparsec", "user", "prettyuser", "social")>]
     member val Name = "<null>" with get, set
@@ -76,16 +67,10 @@ type FormatTest () =
     member __.Chiron_New () =
         Chiron.Formatting.Json.format jsonN
 
-    [<Benchmark(Baseline=true)>]
-    member __.Chiron_Old () =
-        ChironObsolete.Formatting.Json.format jsonO
-
 [<Config(typeof<CoreConfig>)>]
 type FormatVariableLengthStrings () =
     let mutable simpleJson = Chiron.Json.Null
     let mutable escapedJson = Chiron.Json.Null
-    let mutable simpleJsonO = ChironObsolete.Json.Null ()
-    let mutable escapedJsonO = ChironObsolete.Json.Null ()
 
     [<Params(10, 100, 1000, 10000, 100000)>]
     member val public strlen = 1 with get, set
@@ -94,10 +79,8 @@ type FormatVariableLengthStrings () =
     member x.Setup () =
         let simple = String.replicate x.strlen "a"
         simpleJson <- Chiron.Json.String simple
-        simpleJsonO <- ChironObsolete.Json.String simple
         let escaped = String.replicate (x.strlen / 10) "\\u0004\\n\\\""
         escapedJson <- Chiron.Json.String escaped
-        escapedJsonO <- ChironObsolete.Json.String escaped
 
     [<Benchmark>]
     member __.Simple_New () =
@@ -106,11 +89,3 @@ type FormatVariableLengthStrings () =
     [<Benchmark>]
     member __.Escaped_New () =
         Chiron.Formatting.Json.format escapedJson
-
-    [<Benchmark>]
-    member __.Simple_Old () =
-        ChironObsolete.Formatting.Json.format simpleJsonO
-
-    [<Benchmark>]
-    member __.Escaped_Old () =
-        ChironObsolete.Formatting.Json.format escapedJsonO

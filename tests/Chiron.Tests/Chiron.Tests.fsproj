@@ -20,7 +20,6 @@
     <PackageReference Include="Unquote" Version="3.*" />
     <PackageReference Include="FsCheck.Xunit" Version="2.*" />
     <PackageReference Include="FsCheck" Version="2.*" />
-    <PackageReference Include="FParsec" Version="1.0.3-alpha-*" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Chiron\Chiron.fsproj" />

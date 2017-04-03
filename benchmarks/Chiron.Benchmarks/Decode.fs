@@ -139,38 +139,6 @@ module DecodeExamples =
                     static member FromJson (_: Testing): Decoder<Json,Testing> =
                         Testing.toJson
 
-    module Obsolete =
-        open ChironObsolete
-
-        let testJson =
-            Json.Object <| Map.ofList
-                [ "2", Json.Bool true
-                  "3", Json.Number 42M ]
-
-        module ComputationExpression =
-            type Testing =
-                { one: int option
-                  two: bool
-                  three: int }
-                static member FromJson (_: Testing): Json<Testing> = json {
-                    let! o = Json.readOrDefault "1" None
-                    let! t = Json.read "2"
-                    let! r = Json.read "3"
-                    return { one = o; two = t; three = r }
-                }
-
-        module Operators =
-            open ChironObsolete.Operators
-            type Testing =
-                { one: int option
-                  two: bool
-                  three: int }
-                static member FromJson (_: Testing): Json<Testing> =
-                    (fun o t r -> { one = o; two = t; three = r })
-                    <!> Json.readOrDefault "1" None
-                    <*> Json.read "2"
-                    <*> Json.read "3"
-
 [<Config(typeof<CoreConfig>)>]
 type Decoding () =
     [<Benchmark>]
@@ -193,7 +161,7 @@ type Decoding () =
     member x.Inline_Explicit_Operators () =
         (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.Inline.Explicit.Operators.Testing>) |> ignore
 
-    [<Benchmark>]
+    [<Benchmark(Baseline=true)>]
     member x.InModule_Explicit_Operators () =
         (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.InModule.Explicit.Operators.Testing>) |> ignore
 
@@ -204,14 +172,6 @@ type Decoding () =
     [<Benchmark>]
     member x.InModule_Inferred_Operators () =
         (Inference.Json.decode DecodeExamples.testJson : JsonResult<DecodeExamples.InModule.Inferred.Operators.Testing>) |> ignore
-
-    [<Benchmark(Baseline=true)>]
-    member x.Version6_ComputationExpression () =
-        (ChironObsolete.Mapping.Json.deserialize DecodeExamples.Obsolete.testJson : DecodeExamples.Obsolete.ComputationExpression.Testing) |> ignore
-
-    [<Benchmark>]
-    member x.Version6_Operators () =
-        (ChironObsolete.Mapping.Json.deserialize DecodeExamples.Obsolete.testJson : DecodeExamples.Obsolete.Operators.Testing) |> ignore
 
 module E = Chiron.Serialization.Json.Encode
 module D = Chiron.Serialization.Json.Decode
