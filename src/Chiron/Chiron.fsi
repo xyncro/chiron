@@ -8,24 +8,32 @@ type JsonMemberType =
     | Bool
     | Null
 
+type Json
 type JsonObject
 
-type Json
-
-type JsonFailure =
-    | Tagged of propertyName: string * failure: JsonFailure
-    | NoInput
-    | PropertyNotFound
+type JsonFailureTag =
+    | PropertyTag of propertyName: string
+    | IndexTag of index: uint32
+    | ChoiceTag of choice: uint32
+type JsonFailureReason =
+    | OtherError of err: exn
+    | PropertyNotFound of name: string
     | TypeMismatch of expected: JsonMemberType * actual: JsonMemberType
-    | DeserializationError of targetType: System.Type * err: string
-    | ParserFailure of parserFail: string
+    | DeserializationError of targetType: System.Type * err: exn
+    | InvalidJson of err: string
+    | NoInput
+type JsonFailure =
+    | Tagged of tag: JsonFailureTag * jFail: JsonFailure
+    | SingleFailure of jFail: JsonFailureReason
+    | PairedFailures of leftFail: JsonFailure * rightFail: JsonFailure
+    | MultipleFailures of jFails: JsonFailure list
+type ChironErrorPolicy =
+    | StopOnFirstError
+    | ContinueOnError
 
-type JsonResult<'a> = Result<'a,JsonFailure list>
-type Json<'a> = Json -> JsonResult<'a> * Json
-type JsonReader<'a> = Json -> JsonResult<'a>
-type ObjectReader<'a> = JsonObject -> JsonResult<'a>
-type JsonWriter<'a> = 'a -> Json
-type ObjectWriter<'a> = 'a -> JsonObject -> JsonObject
+type JsonResult<'a> =
+    | JPass of 'a
+    | JFail of JsonFailure
 
 [<RequireQualifiedAccess>]
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
@@ -33,8 +41,50 @@ module JsonMemberType =
     val ofJson: Json -> JsonMemberType
     val describe: memberType: JsonMemberType -> string
 
+[<RequireQualifiedAccess>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module JsonFailureTag =
+    val toString: JsonFailureTag -> string
+    val tagPathString: string option -> JsonFailureTag -> string
+
+[<RequireQualifiedAccess>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module JsonFailure =
+    val mappend: JsonFailure -> JsonFailure -> JsonFailure
+    val tag: JsonFailure -> JsonFailure
+    val toStrings: JsonFailure -> string list
+    val summarize: JsonFailure -> string
+
+[<RequireQualifiedAccess>]
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module JsonResult =
+    val inline pass: 'a -> JsonResult<'a>
+    val inline fail: JsonFailure -> JsonResult<'a>
+    val inline fails: JsonFailure list -> JsonResult<'a>
+    val getOrThrow: JsonResult<'a> -> 'a
+    val raise: exn -> JsonResult<'a>
+    val typeMismatch: JsonMemberType -> Json -> JsonResult<'a>
+    val deserializationError<'a>: exn -> JsonResult<'a>
+    val invalidJson: string -> JsonResult<'a>
+    val noInput<'a>: JsonResult<'a>
+    val propertyNotFound: propertyName: string -> JsonResult<'a>
+    val failWithTag: JsonFailureTag -> JsonFailure -> JsonResult<'a>
+
+    val inline bind: a2bR: ('a -> JsonResult<'b>) -> aR: JsonResult<'a> -> JsonResult<'b>
+    val inline map: a2b: ('a -> 'b) -> aR: JsonResult<'a> -> JsonResult<'b>
+    val inline apply: aR: JsonResult<'a> -> a2Rb: (JsonResult<'a -> 'b>) -> JsonResult<'b>
+    val inline applyDelayedWithPolicy: ChironErrorPolicy -> ('s -> JsonResult<'a>) -> 's -> (JsonResult<'a -> 'b>) -> JsonResult<'b>
+    val inline applyDelayedWithPolicyAlt: ChironErrorPolicy -> ('s -> JsonResult<'a>) -> 's -> (JsonResult<'a -> 'b>) -> JsonResult<'b>
+
+type Decoder<'s,'a> = 's -> JsonResult<'a>
+
+type ObjectReader<'a> = Decoder<JsonObject,'a>
+type ObjectBuilder<'a> = 'a -> JsonObject -> JsonObject
+
+type JsonDecoder<'a> = Decoder<Json,'a>
+type JsonEncoder<'a> = 'a -> Json
+
 module Optic =
-    type Epi<'a,'b> = ('a -> JsonResult<'b>) * ('b -> 'a)
     type Lens<'a,'b> = ('a -> JsonResult<'b>) * ('b -> 'a -> 'a)
 
     val get: lens: Lens<'a,'b> -> ('a -> JsonResult<'b>)

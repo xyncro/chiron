@@ -9,7 +9,6 @@
     <Compile Include="Chiron.Testing.fs" />
     <Compile Include="Chiron.Properties.fs" />
     <Compile Include="Program.fs" />
-    <EmbeddedResource Include="**\*.resx" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FSharp.NET.Sdk" Version="1.*" PrivateAssets="All" />

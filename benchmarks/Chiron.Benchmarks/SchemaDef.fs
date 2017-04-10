@@ -205,7 +205,7 @@ module Json =
                 | JPass (Some a), JPass bO ->
                     JsonResult.pass (Some (a, bO))
                 | JPass None, JPass (Some _) ->
-                    JsonResult.fail (FailureReason (DeserializationError (typeof<'b>, sprintf "Property '%s' requires property '%s' to be specified" dependentKey primaryKey)))
+                    JsonResult.fail (SingleFailure (DeserializationError (typeof<'b>, exn (sprintf "Property '%s' requires property '%s' to be specified" dependentKey primaryKey))))
                 | JPass None, JPass None ->
                     JsonResult.pass None
                 | JFail err1, JFail err2 ->
@@ -230,7 +230,7 @@ module Json =
                 | "integer" -> JsonResult.pass JsonSchemaType.Integer
                 | "boolean" -> JsonResult.pass JsonSchemaType.Boolean
                 | "null" -> JsonResult.pass JsonSchemaType.Null
-                | _ -> JsonResult.deserializationError "Invalid JSON type; must be one of: object, array, number, integer, boolean, string, null")
+                | _ -> JsonResult.deserializationError (exn "Invalid JSON type; must be one of: object, array, number, integer, boolean, string, null"))
         let jsonSchemaTypeOrTypes =
             D.either
                 (D.listWith jsonSchemaType)

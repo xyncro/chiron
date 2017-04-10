@@ -62,29 +62,29 @@ module JsonTransformer =
 
     [<Fact>]
     let ``Json.error returns correct values`` () =
-        Json.error (FailureReason NoInput) t1 =! (JsonResult.noInput, t1)
+        Json.error (SingleFailure NoInput) t1 =! (JsonResult.noInput, t1)
 
     [<Fact>]
     let ``Json.bind returns correct values`` () =
         Json.bind (fun x -> Json.init (x * 3)) (Json.init 2) t1 =! (JPass 6, t1)
-        Json.bind (fun x -> Json.init (x * 3)) (Json.error (FailureReason NoInput)) t1 =! ((JsonResult.noInput : JsonResult<int>), t1)
+        Json.bind (fun x -> Json.init (x * 3)) (Json.error (SingleFailure NoInput)) t1 =! ((JsonResult.noInput : JsonResult<int>), t1)
 
     [<Fact>]
     let ``Json.apply returns correct values`` () =
         Json.apply (Json.init 2) (Json.init (fun x -> x * 3)) t1 =! (JPass 6, t1)
-        Json.apply (Json.error (FailureReason NoInput)) (Json.init (fun x -> x * 3)) t1 =! (JsonResult.noInput, t1)
+        Json.apply (Json.error (SingleFailure NoInput)) (Json.init (fun x -> x * 3)) t1 =! (JsonResult.noInput, t1)
 
     [<Fact>]
     let ``Json.map returns correct values`` () =
         Json.map (fun x -> x * 3) (Json.init 2) t1 =! (JPass 6, t1)
-        Json.map (fun x -> x * 3) (Json.error (FailureReason NoInput)) t1 =! (JsonResult.noInput, t1)
+        Json.map (fun x -> x * 3) (Json.error (SingleFailure NoInput)) t1 =! (JsonResult.noInput, t1)
 
     [<Fact>]
     let ``Json.map2 returns correct values`` () =
         Json.map2 (*) (Json.init 2) (Json.init 3) t1 =! (JPass 6, t1)
-        Json.map2 (*) (Json.error (FailureReason NoInput)) (Json.init 3) t1 =! (JsonResult.noInput, t1)
-        Json.map2 (*) (Json.init 2) (Json.error (FailureReason NoInput)) t1 =! (JsonResult.noInput, t1)
-        Json.map2 (*) (Json.error (FailureReason (PropertyNotFound "s"))) (Json.error (FailureReason NoInput)) t1 =! (JFail (FailureReason (PropertyNotFound "s")), t1)
+        Json.map2 (*) (Json.error (SingleFailure NoInput)) (Json.init 3) t1 =! (JsonResult.noInput, t1)
+        Json.map2 (*) (Json.init 2) (Json.error (SingleFailure NoInput)) t1 =! (JsonResult.noInput, t1)
+        Json.map2 (*) (Json.error (SingleFailure (PropertyNotFound "s"))) (Json.error (SingleFailure NoInput)) t1 =! (JFail (SingleFailure (PropertyNotFound "s")), t1)
 
 (* Lens
 
@@ -222,7 +222,11 @@ module Serialization =
 
     [<Fact>]
     let ``uint64 on bad value returns expected value`` () =
-        D.uint64 (E.number "-2") =! JsonResult.deserializationError<uint64> "Value was either too large or too small for a UInt64."
+        let result = D.uint64 (E.number "-2")
+        match result with
+        | JFail (SingleFailure (DeserializationError (t, err))) when t = typeof<uint64> && err.Message = "Value was either too large or too small for a UInt64." -> ()
+        | JFail f -> failwithf "Did not match expected error: %s" (JsonFailure.summarize f)
+        | _ -> failwithf "Unexpectedly succeeded"
 
     [<Fact>]
     let ``string round-trips for example value`` () =
@@ -332,7 +336,11 @@ module Inference =
 
     [<Fact>]
     let ``Inferred round-trip to uint64 on bad value returns expected value`` () =
-        Json.decode (Json.encode -2) =! JsonResult.deserializationError<uint64> "Value was either too large or too small for a UInt64."
+        let result : JsonResult<uint64> = Json.decode (E.number "-2")
+        match result with
+        | JFail (SingleFailure (DeserializationError (t, err))) when t = typeof<uint64> && err.Message = "Value was either too large or too small for a UInt64." -> ()
+        | JFail f -> failwithf "Did not match expected error: %s" (JsonFailure.summarize f)
+        | _ -> failwithf "Unexpectedly succeeded"
 
     [<Fact>]
     let ``Inferred round-trip to string returns expected value`` () =
@@ -509,7 +517,7 @@ module WithTestRecord =
     [<Fact>]
     let ``Json.decode with invalid value includes missing member name`` () =
         let x : JsonResult<Test> = Json.decode testJsonWithNoValues
-        x =! JFail (FailureReason (PropertyNotFound "values"))
+        x =! JFail (SingleFailure (PropertyNotFound "values"))
 
     [<Fact>]
     let ``Json.encode with custom types returns correct values`` () =

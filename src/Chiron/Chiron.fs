@@ -61,29 +61,26 @@ type JsonFailureTag =
     | IndexTag of index: uint32
     | ChoiceTag of choice: uint32
 type JsonFailureReason =
-    | OtherError of err: string
+    | OtherError of err: exn
     | PropertyNotFound of name: string
     | TypeMismatch of expected: JsonMemberType * actual: JsonMemberType
-    | DeserializationError of targetType: System.Type * err: string
+    | DeserializationError of targetType: System.Type * err: exn
     | InvalidJson of err: string
     | NoInput
 type JsonFailure =
     | Tagged of tag: JsonFailureTag * jFail: JsonFailure
-    | FailureReason of jFail: JsonFailureReason
-    | FailNode of leftFail: JsonFailure * rightFail: JsonFailure
-    | FailList of jFails: JsonFailure list
+    | SingleFailure of jFail: JsonFailureReason
+    | PairedFailures of leftFail: JsonFailure * rightFail: JsonFailure
+    | MultipleFailures of jFails: JsonFailure list
 type ChironErrorPolicy =
     | StopOnFirstError
     | ContinueOnError
 
-#if STRUCT_RESULT
-type JsonResult<'a> = Result<'a,JsonFailure>
-#else
 type JsonResult<'a> =
     | JPass of 'a
     | JFail of JsonFailure
-#endif
 
+[<RequireQualifiedAccess>]
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module JsonFailureTag =
     let toString = function
@@ -101,10 +98,10 @@ module JsonFailureTag =
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module JsonFailureReason =
     let toString = function
-        | OtherError e -> e
+        | OtherError e -> string e
         | PropertyNotFound k -> "Failed to find expected property: " + k
         | TypeMismatch (e,a) -> System.String.Concat ("Expected to find ", JsonMemberType.describe e, ", but instead found ", JsonMemberType.describe a)
-        | DeserializationError (t,e) -> System.String.Concat ("Unable to deserialize value as '", t.FullName, "': ", e)
+        | DeserializationError (t,e) -> System.String.Concat ("Unable to deserialize value as '", t.FullName, "': ", string e)
         | InvalidJson e -> "Invalid JSON, failed to parse: " + e
         | NoInput -> "No input was provided"
 
@@ -115,18 +112,18 @@ module JsonFailureReason =
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module JsonFailure =
     let mappend jFail1 jFail2 =
-        FailNode (jFail1, jFail2)
+        PairedFailures (jFail1, jFail2)
     let tag (t: JsonFailureTag) (f: JsonFailure) =
         Tagged (t, f)
     let toStrings jFail =
         let rec inner (prefix: string option) = function
             | Tagged (tag, innerFail) ->
                 inner (JsonFailureTag.toTagPathString prefix tag |> Some) innerFail
-            | FailureReason jfr ->
+            | SingleFailure jfr ->
                 [ JsonFailureReason.toStringWithPath prefix jfr ]
-            | FailNode (jFail1, jFail2) ->
+            | PairedFailures (jFail1, jFail2) ->
                 [ jFail1; jFail2 ] |> List.collect (inner prefix)
-            | FailList jFails ->
+            | MultipleFailures jFails ->
                 jFails |> List.rev |> List.collect (inner prefix)
         inner None jFail
     let summarize jFail =
@@ -142,19 +139,19 @@ module JsonFailure =
 module JsonResult =
     let inline pass a = JPass a
     let inline fail f = JFail f
-    let inline fails fs = JFail (FailList fs)
+    let inline fails fs = JFail (MultipleFailures fs)
 
     let getOrThrow : JsonResult<'a> -> 'a = function
         | JPass x -> x
         | JFail f -> failwith (JsonFailure.toStrings f |> String.concat "\n")
 
-    let failwith str = fail (FailureReason (OtherError str))
-    let typeMismatch expected json = fail (FailureReason (TypeMismatch (expected, JsonMemberType.ofJson json)))
-    let deserializationError<'a> err : JsonResult<'a> = fail (FailureReason (DeserializationError (typeof<'a>, err)))
-    let invalidJson err : JsonResult<'a> = fail (FailureReason (InvalidJson err))
-    let noInput<'a> : JsonResult<'a> = fail (FailureReason NoInput)
-    let propertyNotFound f : JsonResult<'a> = fail (FailureReason (PropertyNotFound f))
-    let failTagged t f : JsonResult<'a> = fail (Tagged (t, f))
+    let raise e = fail (SingleFailure (OtherError e))
+    let typeMismatch expected json = fail (SingleFailure (TypeMismatch (expected, JsonMemberType.ofJson json)))
+    let deserializationError<'a> exn : JsonResult<'a> = fail (SingleFailure (DeserializationError (typeof<'a>, exn)))
+    let invalidJson err : JsonResult<'a> = fail (SingleFailure (InvalidJson err))
+    let noInput<'a> : JsonResult<'a> = fail (SingleFailure NoInput)
+    let propertyNotFound f : JsonResult<'a> = fail (SingleFailure (PropertyNotFound f))
+    let failWithTag t f : JsonResult<'a> = fail (Tagged (t, f))
 
     let inline bind (a2bR: 'a -> JsonResult<'b>) (aR : JsonResult<'a>) : JsonResult<'b> =
         match aR with
@@ -287,49 +284,49 @@ module Decoder =
         fun s ->
             match s2aR s with
             | JPass a -> JsonResult.pass a
-            | JFail f -> JsonResult.failTagged (PropertyTag p) f
+            | JFail f -> JsonResult.failWithTag (PropertyTag p) f
 
     let withIndexTag i (s2aR : Decoder<'s,'a>) : Decoder<'s,'a> =
         fun s ->
             match s2aR s with
             | JPass a -> JsonResult.pass a
-            | JFail f -> JsonResult.failTagged (IndexTag i) f
+            | JFail f -> JsonResult.failWithTag (IndexTag i) f
 
     let withChoiceTag c (s2aR : Decoder<'s,'a>) : Decoder<'s,'a> =
         fun s ->
             match s2aR s with
             | JPass a -> JsonResult.pass a
-            | JFail f -> JsonResult.failTagged (ChoiceTag c) f
+            | JFail f -> JsonResult.failWithTag (ChoiceTag c) f
 
     let fromThrowingConverter (convert: 's -> 'a) : Decoder<'s,'a> =
         fun s ->
             try
                 JsonResult.pass (convert s)
-            with e -> JsonResult.deserializationError<'a> e.Message
+            with e -> JsonResult.deserializationError<'a> e
 
     let inline withPropertyTagInline p (s2aR : Decoder<'s,'a>) : Decoder<'s,'a> =
         fun s ->
             match s2aR s with
             | JPass a -> JsonResult.pass a
-            | JFail f -> JsonResult.failTagged (PropertyTag p) f
+            | JFail f -> JsonResult.failWithTag (PropertyTag p) f
 
     let inline withIndexTagInline i (s2aR : Decoder<'s,'a>) : Decoder<'s,'a> =
         fun s ->
             match s2aR s with
             | JPass a -> JsonResult.pass a
-            | JFail f -> JsonResult.failTagged (IndexTag i) f
+            | JFail f -> JsonResult.failWithTag (IndexTag i) f
 
     let inline withChoiceTagInline c (s2aR : Decoder<'s,'a>) : Decoder<'s,'a> =
         fun s ->
             match s2aR s with
             | JPass a -> JsonResult.pass a
-            | JFail f -> JsonResult.failTagged (ChoiceTag c) f
+            | JFail f -> JsonResult.failWithTag (ChoiceTag c) f
 
     let inline fromThrowingConverterInline (convert: 's -> 'a) : Decoder<'s,'a> =
         fun s ->
             try
                 JsonResult.pass (convert s)
-            with e -> JsonResult.deserializationError<'a> e.Message
+            with e -> JsonResult.deserializationError<'a> e
 
 module Operators =
     let inline (<!>) (a2b: 'a -> 'b) (s2aR: Decoder<'s,'a>) = Decoder.map a2b s2aR
@@ -1167,7 +1164,7 @@ module Serialization =
                         | nextDecode::nextDecoders ->
                             failing nextDecode nextDecoders nextAggErrs (i + 1u) s
                 match decoders with
-                | [] -> fun s -> JsonResult.deserializationError "No decoders provided to oneOf"
+                | [] -> fun s -> JsonResult.deserializationError (exn "No decoders provided to oneOf")
                 | [decode] -> decode
                 | initDecode::initDecoders -> failing initDecode initDecoders [] 0u
 
@@ -1179,7 +1176,7 @@ module Serialization =
                     if pred s then
                         JsonResult.pass s
                     else
-                        JsonResult.failwith failMsg
+                        JsonResult.raise (exn failMsg)
 
             let propertyList : Decoder<Json,(string * Json) list> =
                 JsonObject.toPropertyList <!> jsonObject
@@ -1292,9 +1289,9 @@ module Serialization =
             let inline listToTuple2 lst =
                 match lst with
                 | [a;b] -> JsonResult.pass (a, b)
-                | [_] -> JsonResult.deserializationError "2-Tuple has only one element"
-                | [] -> JsonResult.deserializationError "2-Tuple has zero elements"
-                | _ -> JsonResult.deserializationError "2-Tuple has too many elements"
+                | [_] -> JsonResult.deserializationError (exn "2-Tuple has only one element")
+                | [] -> JsonResult.deserializationError (exn "2-Tuple has zero elements")
+                | _ -> JsonResult.deserializationError (exn "2-Tuple has too many elements")
 
             let tuple2 : Decoder<Json,Json * Json> =
                 list >=> listToTuple2
@@ -1324,8 +1321,8 @@ module Serialization =
             let inline listToTuple3 lst =
                 match lst with
                 | [a;b;c] -> JsonResult.pass (a, b, c)
-                | x when List.length x > 3 -> JsonResult.deserializationError "3-Tuple has excess elements"
-                | _ -> JsonResult.deserializationError "3-Tuple has insufficient elements"
+                | x when List.length x > 3 -> JsonResult.deserializationError (exn "3-Tuple has excess elements")
+                | _ -> JsonResult.deserializationError (exn "3-Tuple has insufficient elements")
 
             let tuple3 =
                 list >=> listToTuple3
@@ -1358,8 +1355,8 @@ module Serialization =
             let inline listToTuple4 lst =
                 match lst with
                 | [a;b;c;d] -> JsonResult.pass (a, b, c, d)
-                | x when List.length x > 4 -> JsonResult.deserializationError "4-Tuple has excess elements"
-                | _ -> JsonResult.deserializationError "4-Tuple has insufficient elements"
+                | x when List.length x > 4 -> JsonResult.deserializationError (exn "4-Tuple has excess elements")
+                | _ -> JsonResult.deserializationError (exn "4-Tuple has insufficient elements")
 
             let tuple4 =
                 list >=> listToTuple4
@@ -1395,8 +1392,8 @@ module Serialization =
             let inline listToTuple5 lst =
                 match lst with
                 | [a;b;c;d;e] -> JsonResult.pass (a, b, c, d, e)
-                | x when List.length x > 5 -> JsonResult.deserializationError "5-Tuple has excess elements"
-                | _ -> JsonResult.deserializationError "5-Tuple has insufficient elements"
+                | x when List.length x > 5 -> JsonResult.deserializationError (exn "5-Tuple has excess elements")
+                | _ -> JsonResult.deserializationError (exn "5-Tuple has insufficient elements")
 
             let tuple5 =
                 list >=> listToTuple5
@@ -1435,8 +1432,8 @@ module Serialization =
             let listToTuple6 lst =
                 match lst with
                 | [a;b;c;d;e;f] -> JsonResult.pass (a, b, c, d, e, f)
-                | x when List.length x > 6 -> JsonResult.deserializationError "6-Tuple has excess elements"
-                | _ -> JsonResult.deserializationError "6-Tuple has insufficient elements"
+                | x when List.length x > 6 -> JsonResult.deserializationError (exn "6-Tuple has excess elements")
+                | _ -> JsonResult.deserializationError (exn "6-Tuple has insufficient elements")
 
             let tuple6 =
                 list >=> listToTuple6
@@ -1478,8 +1475,8 @@ module Serialization =
             let inline listToTuple7 lst =
                 match lst with
                 | [a;b;c;d;e;f;g] -> JsonResult.pass (a, b, c, d, e, f, g)
-                | x when List.length x > 7 -> JsonResult.deserializationError "7-Tuple has excess elements"
-                | _ -> JsonResult.deserializationError "7-Tuple has insufficient elements"
+                | x when List.length x > 7 -> JsonResult.deserializationError (exn "7-Tuple has excess elements")
+                | _ -> JsonResult.deserializationError (exn "7-Tuple has insufficient elements")
 
             let tuple7 =
                 list >=> listToTuple7

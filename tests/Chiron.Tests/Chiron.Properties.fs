@@ -164,7 +164,7 @@ type TestUnion =
         | Property "CaseWithThreeArgs" (a1, a2, a3) as json -> JPass (CaseWithThreeArgs (a1, a2, a3))
         | Property "CaseWithFourArgs" (a1, a2, a3, a4) as json -> JPass (CaseWithFourArgs (a1, a2, a3, a4))
         | Property "CaseWithFiveArgs" (a1, a2, a3, a4, a5) as json -> JPass (CaseWithFiveArgs (a1, a2, a3, a4, a5))
-        | _ -> JsonResult.deserializationError "Couldn't find `CaseWithXXXArgs`"
+        | _ -> JsonResult.deserializationError (exn "Couldn't find `CaseWithXXXArgs`")
 
 [<Property>]
 let ``TestUnion can be round-tripped`` (v : TestUnion) =
