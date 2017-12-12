@@ -491,9 +491,9 @@ module WithTestRecord =
         module Decode =
             let test =
                 let inner =
-                    (fun s n v j -> { String = s; Number = n; Values = v; Json = j })
+                    (fun s n v j -> { String = s; Number = Option.bind id n; Values = v; Json = j })
                     <!> DI.required "string"
-                    <*> D.optional D.int "number"
+                    <*> D.optional (D.optionWith D.int) "number"
                     <*> D.required (D.listWith D.bool) "values"
                     <*> D.required D.json "json"
                 D.jsonObject >=> inner
@@ -536,7 +536,7 @@ module WithTestRecord =
           Values = [ ]
           Json = E.propertyList [ "hello", E.string "world" ] }
 
-    [<Fact(Skip="To be considered")>]
+    [<Fact>]
     let ``Json.decode with null option value`` () =
         Json.decode testJsonWithNullOption =! JPass testInstanceWithNoneOption
 
