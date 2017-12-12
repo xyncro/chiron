@@ -17,7 +17,6 @@
     <PackageReference Include="FParsec" Version="1.0.2" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETStandard'">
-    <PackageReference Include="FParsec" Version="1.0.3-alpha-*" />
-    <PackageReference Include="FParsecCS" Version="1.0.3-alpha-*" />
+    <PackageReference Include="FParsec" Version="1.0.3" />
   </ItemGroup>
 </Project>
