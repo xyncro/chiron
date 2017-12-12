@@ -121,6 +121,9 @@ module Lenses =
 (* Parsing *)
 
 module Parsing =
+    open System.Threading
+    open System.Globalization
+
     [<Fact>]
     let ``Json.parse returns correct values`` () =
         Json.parse "\"hello\"" =! JPass (E.string "hello")
@@ -131,7 +134,18 @@ module Parsing =
 
         Json.parse null =! JsonResult.noInput
 
+
+    [<Fact>]
+    let ``Json.format returns correct values under other cultures`` () =
+        let culture = Thread.CurrentThread.CurrentCulture
+        Thread.CurrentThread.CurrentCulture <- CultureInfo("fi-FI")
+        Json.parse "3.5" =! JPass (E.float 3.5)
+        Thread.CurrentThread.CurrentCulture <- culture
+
 module Formatting =
+    open System.Threading
+    open System.Globalization
+
     [<Fact>]
     let ``Json.format returns correct values`` () =
         Json.format t1 =! """{"bool":true,"number":2}"""
@@ -141,6 +155,14 @@ module Formatting =
         Json.format (E.string "") =! "\"\""
         Json.format (E.string "푟") =! "\"푟\""
         Json.format (E.string "\t") =! "\"\\t\""
+        Json.format (E.float 3.5) =! "3.5"
+
+    [<Fact>]
+    let ``Json.format returns correct values under other cultures`` () =
+        let culture = Thread.CurrentThread.CurrentCulture
+        Thread.CurrentThread.CurrentCulture <- CultureInfo("fi-FI")
+        Json.format (E.float 3.5) =! "3.5"
+        Thread.CurrentThread.CurrentCulture <- culture
 
     // [<Fact>]
     // let ``escape is not pathological for cases with escapes`` () =
@@ -394,7 +416,7 @@ module Inference =
     [<Fact>]
     let ``Inferred round-trip on Ok result favors Ok over Error (no wrapper)`` () =
         Json.decode (Json.encode ("Test")) =! JPass (Ok "Test" : Result<string, string>)
-        
+
     [<Fact>]
     let ``Inferred round-trip on Error result returns correct value`` () =
         Json.decode (Json.encode (Error 123 : Result<string, int>)) =! JPass (Error 123 : Result<string, int>)
