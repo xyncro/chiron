@@ -384,6 +384,30 @@ module Inference =
         Json.decode (Json.encode [ "one"; "two" ]) =! JPass (set [ "one"; "two" ])
 
     [<Fact>]
+    let ``Inferred round-trip on Ok result returns correct value`` () =
+        Json.decode (Json.encode (Ok "Test" : Result<string, int>)) =! JPass (Ok "Test" : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result returns correct value (no wrapper)`` () =
+        Json.decode (Json.encode ("Test")) =! JPass (Ok "Test" : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result favors Ok over Error (no wrapper)`` () =
+        Json.decode (Json.encode ("Test")) =! JPass (Ok "Test" : Result<string, string>)
+        
+    [<Fact>]
+    let ``Inferred round-trip on Error result returns correct value`` () =
+        Json.decode (Json.encode (Error 123 : Result<string, int>)) =! JPass (Error 123 : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Error result returns correct value (no wrapper)`` () =
+        Json.decode (Json.encode (123)) =! JPass (Error 123 : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result with different Error type returns correct value`` () =
+        Json.decode (Json.encode (Ok "Test" : Result<string, int>)) =! JPass (Ok "Test" : Result<string, bool>)
+
+    [<Fact>]
     let ``Inferred round-trip on Some returns correct values`` () =
         Json.decode (Json.encode (Some "hello")) =! JPass (Some "hello")
 
