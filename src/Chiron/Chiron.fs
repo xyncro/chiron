@@ -145,6 +145,10 @@ module JsonResult =
         | JPass x -> x
         | JFail f -> failwith (JsonFailure.toStrings f |> String.concat "\n")
 
+    let toResult : JsonResult<'a> -> Result<'a, JsonFailure> = function
+        | JPass x -> Ok x
+        | JFail f -> Error f
+
     let raise e = fail (SingleFailure (OtherError e))
     let typeMismatch expected json = fail (SingleFailure (TypeMismatch (expected, JsonMemberType.ofJson json)))
     let deserializationError<'a> exn : JsonResult<'a> = fail (SingleFailure (DeserializationError (typeof<'a>, exn)))
