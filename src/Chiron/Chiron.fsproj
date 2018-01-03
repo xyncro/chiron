@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="FSharp.NET.Sdk" Version="1.*" PrivateAssets="All" />
     <PackageReference Include="FSharp.Core" Version="4.1.0" />
+    <PackageReference Include="SourceLink.Create.CommandLine" Version="2.7.3" PrivateAssets="All" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETStandard'">
     <PackageReference Include="FParsec" Version="1.0.2" />
