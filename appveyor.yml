@@ -1,5 +1,7 @@
 version: 7.0.0-aci-{build}
 
+image: Visual Studio 2017
+
 build_script:
   - ps: dotnet --info
   - ps: dotnet restore
