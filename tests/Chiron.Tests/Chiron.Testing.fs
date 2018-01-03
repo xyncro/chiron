@@ -1,5 +1,6 @@
 ﻿module Chiron.Testing
 
+open System.Globalization
 open FsCheck
 open Chiron
 
@@ -101,16 +102,16 @@ module Json =
             ifFullyShrunkThen (NonNull s) shrinkToBool (fun (NonNull s) -> Json.Encode.string s)
 
         | Number n when n.Contains "e" || n.Contains "E" || (n.Contains "." && String.length n > 17) ->
-            ifFullyShrunkThen (System.Double.Parse n) shrinkToBool Json.Encode.float
+            ifFullyShrunkThen (System.Double.Parse(n, CultureInfo.InvariantCulture)) shrinkToBool Json.Encode.float
 
         | Number n when n.Contains "." ->
-            ifFullyShrunkThen (System.Decimal.Parse n) shrinkToBool Json.Encode.decimal
+            ifFullyShrunkThen (System.Decimal.Parse(n, CultureInfo.InvariantCulture)) shrinkToBool Json.Encode.decimal
 
         | Number n when String.length n > 18 ->
             Seq.ofList [ Json.Encode.number (n.Substring(1)); Json.Encode.number (n.Substring(0, String.length n - 1)) ]
 
         | Number n ->
-            ifFullyShrunkThen (System.Int64.Parse n) shrinkToBool Json.Encode.int64
+            ifFullyShrunkThen (System.Int64.Parse(n, CultureInfo.InvariantCulture)) shrinkToBool Json.Encode.int64
 
         | Array a ->
             ifFullyShrunkThen a shrinkToNumberOrString Json.Encode.list
