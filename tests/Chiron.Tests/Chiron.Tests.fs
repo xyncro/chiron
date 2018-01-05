@@ -569,6 +569,96 @@ module WithTestRecord =
     let ``Json.encode with custom types returns correct values`` () =
         Json.encode testInstance =! testJson
 
+module WithRecursion =
+    open Operators
+
+    type Node =
+        | Data of IntTree * IntTree
+
+    and IntTree =
+        | Node of Node
+        | Leaf of int
+
+    module Encode =
+        let treeRef, tree = E.ref<IntTree> ()
+
+        let leafMixin i jObj =
+            E.required E.int "value" i jObj
+
+        let nodeMixin (Data (l,r)) jObj =
+            E.required tree "left" l jObj
+            |> E.required tree "right" r
+
+        let node n =
+            E.buildWith nodeMixin n
+
+        do
+            treeRef := function
+                | Node n -> node n
+                | Leaf i -> E.buildWith leafMixin i
+
+    module Decode =
+        let treeRef, tree = D.ref<Json,IntTree>()
+
+        let decodeLeaf =
+            Leaf
+            <!> D.required D.int "value"
+
+        let decodeNode =
+            (fun l r -> Data (l,r))
+            <!> D.required tree "left"
+            <*> D.required tree "right"
+
+        let decodeTreeNode =
+            Node
+            <!> D.jsonObjectWith decodeNode
+
+        do
+            treeRef :=
+                D.oneOf
+                    [ D.jsonObjectWith decodeLeaf
+                      decodeTreeNode ]
+
+    module Tests =
+        let trivialAsJson =
+            E.propertyList
+                [ "value", E.int 1 ]
+
+        let trivial = Leaf 1
+
+        [<Fact>]
+        let ``encode with trivial value`` () =
+
+            Encode.tree trivial =! trivialAsJson
+
+        [<Fact>]
+        let ``decode to trivial value`` () =
+
+            Decode.tree trivialAsJson =! JPass trivial
+
+        let recursiveAsJson =
+            E.propertyList
+                [ "left",
+                    E.propertyList
+                        [ "left", E.propertyList ["value", E.int 1]
+                          "right", E.propertyList ["value", E.int 2]]
+                  "right",
+                    E.propertyList
+                        [ "left", E.propertyList ["value", E.int 3]
+                          "right", E.propertyList ["value", E.int 4]]]
+
+        let recursive =
+            Node (Data (Node (Data (Leaf 1, Leaf 2)), Node (Data (Leaf 3, Leaf 4))))
+
+        [<Fact>]
+        let ``encode with recursion`` () =
+            Encode.tree recursive =! recursiveAsJson
+
+        [<Fact>]
+        let ``decode with recursion`` () =
+
+            Decode.tree recursiveAsJson =! JPass recursive
+
 module WithTestUnion =
     open Operators
     module EI = Inference.Json.Encode

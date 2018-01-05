@@ -879,6 +879,10 @@ module Serialization =
                 | Some a -> buildWith a jObj
                 | None -> jObj
 
+            let ref (): JsonEncoder<'a> ref * JsonEncoder<'a> =
+                let innerRef = ref (Unchecked.defaultof<JsonEncoder<'a>>)
+                innerRef, (fun a -> (!innerRef) a)
+
             let lazily (lazyEncode: Lazy<JsonEncoder<'a>>): JsonEncoder<'a> =
                 fun a -> lazyEncode.Force() a
 
@@ -1147,6 +1151,10 @@ module Serialization =
                 fun jObj ->
                     Encode.jsonObject jObj
                     |> decode
+
+            let ref (): Decoder<'s,'a> ref * Decoder<'s,'a> =
+                let innerRef = ref (Unchecked.defaultof<Decoder<'s,'a>>)
+                innerRef, (fun s -> (!innerRef) s)
 
             let lazily (lazyDecode: Lazy<Decoder<'s,'a>>): Decoder<'s,'a> =
                 fun s ->
