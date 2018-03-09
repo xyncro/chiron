@@ -1,4 +1,5 @@
-<Project>
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <VersionPrefix>7.0.0</VersionPrefix>
     <Authors>Andrew Cherry;Michael Newton;Henrik Feldt;Marcus Griep;Tony Williams</Authors>
