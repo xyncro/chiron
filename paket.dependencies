@@ -1,7 +1,8 @@
 source http://nuget.org/api/v2
 
-nuget Aether >= 8.0.2 < 9.0.0
+nuget Aether >= 8.2.0 < 9.0.0
 nuget FParsec ~> 1
+nuget FSharp.Core
 
 group Build
 
@@ -12,7 +13,6 @@ group Build
 
 group Test
 
-  framework: >= net45
   source http://nuget.org/api/v2
 
   nuget FsCheck.Xunit
@@ -20,3 +20,5 @@ group Test
   nuget Unquote
   nuget xunit
   nuget xunit.runner.console
+  nuget xunit.runner.visualstudio
+  nuget Microsoft.NET.Test.Sdk

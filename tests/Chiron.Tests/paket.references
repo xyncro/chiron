@@ -6,3 +6,5 @@ group Test
   FsCheck.Xunit
   Unquote
   xunit
+  xunit.runner.visualstudio
+  Microsoft.NET.Test.Sdk
