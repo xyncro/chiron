@@ -1,450 +1,840 @@
-﻿module Chiron.Tests.Functional
+﻿namespace Chiron.Tests.Functional
 
 open System
-open Aether
-open Aether.Operators
 open Chiron
 open Chiron.Operators
 open Xunit
 open Swensen.Unquote
 
-(* Cases *)
+module D = Json.Decode
+module E = Json.Encode
 
-let private t1 =
-    Object (Map.ofList
-        [ "bool", Bool true
-          "number", Number 2M ])
+[<AutoOpen>]
+module Constants =
+    let t1 =
+        E.propertyList
+            [ "bool", E.bool true
+              "number", E.decimal 2M ]
 
-let private t2 =
-    Object (Map.ofList
-        [ "bool", Bool false
-          "number", Number 2M ])
+    let t2 =
+        E.propertyList
+            [ "bool", E.bool false
+              "number", E.decimal 2M ]
+
+    type Testing =
+        { one: int option
+          two: bool
+          three: int }
+
+    module Testing =
+        let mk o t r = { one = o; two = t; three = r }
+        let encode x jObj =
+            jObj
+            |> E.required (E.optionWith E.int) "1" x.one
+            |> E.required E.bool "2" x.two
+            |> E.required E.int "3" x.three
+        let decode =
+            mk
+            <!> D.required (D.optionWith D.int) "1"
+            <*> D.required D.bool "2"
+            <*> D.required D.int "3"
+
+    type Testing with
+        static member Encode (x: Testing) =
+            Testing.encode x
+        static member Decode (jObj) =
+            Testing.decode jObj
+
+    let testJsonObject = E.propertyList [ "1", Json.Null; "2", E.bool true; "3", E.int 42 ]
+    let testObject = { one = None; two = true; three = 42 }
+    let [<Literal>] testJson1 = """{"1":null,"2":true,"3":42}"""
 
 (* Functional
 
    Tests to exercise the basic functional components of the Json<'a>
    type and combinators thereof. *)
+module JsonTransformer =
+    open JsonTransformer
 
-[<Fact>]
-let ``Json.init returns correct values`` () =
-    Json.init 1 t1 =! (Value 1,  t1)
+    [<Fact>]
+    let ``Json.init returns correct values`` () =
+        Json.init 1 t1 =! (JPass 1,  t1)
 
-[<Fact>]
-let ``Json.error returns correct values`` () =
-    Json.error "e" t1 =! (Error "e", t1)
+    [<Fact>]
+    let ``Json.error returns correct values`` () =
+        Json.error (SingleFailure NoInput) t1 =! (JsonResult.noInput, t1)
 
-[<Fact>]
-let ``Json.bind returns correct values`` () =
-    Json.bind (Json.init 2) (fun x -> Json.init (x * 3)) t1 =! (Value 6, t1)
-    Json.bind (Json.error "e") (fun x -> Json.init (x * 3)) t1 =! (Error "e", t1)
+    [<Fact>]
+    let ``Json.bind returns correct values`` () =
+        Json.bind (fun x -> Json.init (x * 3)) (Json.init 2) t1 =! (JPass 6, t1)
+        Json.bind (fun x -> Json.init (x * 3)) (Json.error (SingleFailure NoInput)) t1 =! ((JsonResult.noInput : JsonResult<int>), t1)
 
-[<Fact>]
-let ``Json.apply returns correct values`` () =
-    Json.apply (Json.init (fun x -> x * 3)) (Json.init 2) t1 =! (Value 6, t1)
-    Json.apply (Json.init (fun x -> x * 3)) (Json.error "e") t1 =! (Error "e", t1)
+    [<Fact>]
+    let ``Json.apply returns correct values`` () =
+        Json.apply (Json.init 2) (Json.init (fun x -> x * 3)) t1 =! (JPass 6, t1)
+        Json.apply (Json.error (SingleFailure NoInput)) (Json.init (fun x -> x * 3)) t1 =! (JsonResult.noInput, t1)
 
-[<Fact>]
-let ``Json.map returns correct values`` () =
-    Json.map (fun x -> x * 3) (Json.init 2) t1 =! (Value 6, t1)
-    Json.map (fun x -> x * 3) (Json.error "e") t1 =! (Error "e", t1)
+    [<Fact>]
+    let ``Json.map returns correct values`` () =
+        Json.map (fun x -> x * 3) (Json.init 2) t1 =! (JPass 6, t1)
+        Json.map (fun x -> x * 3) (Json.error (SingleFailure NoInput)) t1 =! (JsonResult.noInput, t1)
 
-[<Fact>]
-let ``Json.map2 returns correct values`` () =
-    Json.map2 (*) (Json.init 2) (Json.init 3) t1 =! (Value 6, t1)
-    Json.map2 (*) (Json.error "e") (Json.init 3) t1 =! (Error "e", t1)
-    Json.map2 (*) (Json.init 2) (Json.error "e") t1 =! (Error "e", t1)
+    [<Fact>]
+    let ``Json.map2 returns correct values`` () =
+        Json.map2 (*) (Json.init 2) (Json.init 3) t1 =! (JPass 6, t1)
+        Json.map2 (*) (Json.error (SingleFailure NoInput)) (Json.init 3) t1 =! (JsonResult.noInput, t1)
+        Json.map2 (*) (Json.init 2) (Json.error (SingleFailure NoInput)) t1 =! (JsonResult.noInput, t1)
+        Json.map2 (*) (Json.error (SingleFailure (PropertyNotFound "s"))) (Json.error (SingleFailure NoInput)) t1 =! (JFail (SingleFailure (PropertyNotFound "s")), t1)
 
 (* Lens
 
    Tests to exercise the functional lens based access to Json
    data structures. *)
+module Lenses =
+    let private id_ =
+        JPass, (fun a _ -> a)
 
-let private prism_ =
-        Json.Object_
-    >?> Map.key_ "bool"
-    >?> Json.Bool_
+    let private prism_ =
+        Optics.compose (Optics.Json.Property_ "bool") Optics.Json.Bool_
 
-[<Fact>]
-let ``Json.Lens.get returns correct values`` () =
-    Json.Optic.get id_ t1 =! (Value t1, t1)
+    [<Fact>]
+    let ``Optics.get returns correct values`` () =
+        Optics.get id_ t1 =! JPass t1
 
-[<Fact>]
-let ``Json.Optic.get with Lens returns correct values`` () =
-    Json.Optic.get prism_ t1 =! (Value true, t1)
+    [<Fact>]
+    let ``Optics.get with Lens returns correct values`` () =
+        Optics.get prism_ t1 =! JPass true
 
-[<Fact>]
-let ``Json.Optic.tryGet with Prism returns correct values`` () =
-    Json.Optic.tryGet Json.Number_ t1 =! (Value None, t1)
+    [<Fact>]
+    let ``Optics.set with Lens returns correct values`` () =
+        Optics.set id_ (E.bool false) t1 =! E.bool false
 
-[<Fact>]
-let ``Json.Optic.set with Lens returns correct values`` () =
-    Json.Optic.set id_ (Bool false) t1 =! (Value (), Bool false)
-
-[<Fact>]
-let ``Json.Optic.set with Prism returns correct values`` () =
-    Json.Optic.set prism_ false t1 =! (Value (), t2)
-
-[<Fact>]
-let ``Json.Optic.map with Lens returns correct values`` () =
-    Json.Optic.map id_ (fun _ -> Null ()) t1 =! (Value (), Null ())
-
-[<Fact>]
-let ``Json.Optic.map with Prism returns correct values`` () =
-    Json.Optic.map prism_ not t1 =! (Value (), t2)
+    [<Fact>]
+    let ``Optics.set with Prism returns correct values`` () =
+        let json =
+            Optics.set prism_ false t1
+            |> function
+            | Object o -> E.jsonObject o
+            | json -> json
+        json =! t2
 
 (* Parsing *)
 
-[<Fact>]
-let ``Json.parse returns correct values`` () =
-    Json.parse "\"hello\"" =! String "hello"
-    Json.parse "\"\"" =! String ""
-    Json.parse "\"\\n\"" =! String "\n"
-    Json.parse "\"\\u005c\"" =! String "\\"
-    Json.parse "\"푟\"" =! String "푟"
+module Parsing =
+    open System.Threading
+    open System.Globalization
 
-[<Fact>]
-let ``Json.tryParse doesn't throw exceptions``() =
-    Json.tryParse null =! Choice2Of2("Input is null or whitespace")
+    [<Fact>]
+    let ``Json.parse returns correct values`` () =
+        Json.parse "\"hello\"" =! JPass (E.string "hello")
+        Json.parse "\"\"" =! JPass (E.string "")
+        Json.parse "\"\\n\"" =! JPass (E.string "\n")
+        Json.parse "\"\\u005c\"" =! JPass (E.string "\\")
+        Json.parse "\"푟\"" =! JPass (E.string "푟")
 
-(* Formatting *)
+        Json.parse null =! JsonResult.noInput
 
-[<Fact>]
-let ``Json.format returns correct values`` () =
-    (* String *)
-    Json.format <| String "hello" =! "\"hello\""
 
-    (* Awkward string *)
-    Json.format <| String "he\nllo" =! "\"he\\nllo\""
+    [<Fact>]
+    let ``Json.format returns correct values under other cultures`` () =
+        let culture = Thread.CurrentThread.CurrentCulture
+        Thread.CurrentThread.CurrentCulture <- CultureInfo("fi-FI")
+        Json.parse "3.5" =! JPass (E.float 3.5)
+        Thread.CurrentThread.CurrentCulture <- culture
 
-    (* Complex type *)
-    Json.format t1 =! """{"bool":true,"number":2}"""
+module Formatting =
+    open System.Threading
+    open System.Globalization
 
-    Json.format (String "hello") =! "\"hello\""
-    Json.format (String "") =! "\"\""
-    Json.format (String "푟") =! "\"푟\""
-    Json.format (String "\t") =! "\"\\t\""
+    [<Fact>]
+    let ``Json.format returns correct values`` () =
+        Json.format t1 =! """{"bool":true,"number":2}"""
 
-[<Fact>]
-let ``escape is not pathological for cases with escapes`` () =
-    let testObj =
-        Json.Array
-            [ for i in 1..100000 do
-                yield Json.String <| "he\nllo\u0006\t 푟 " + string i ]
-    let testString = Json.format testObj
-    let sw = System.Diagnostics.Stopwatch.StartNew()
-    let escaped = Escaping.escape testString
-    let time = sw.ElapsedMilliseconds
-    printfn "String length: %i, JSON escaped length: %i, Time: %i ms" (String.length testString) (String.length escaped) time
-    Assert.InRange(time, 0L, 5000L)
+        Json.format (E.string "hello") =! "\"hello\""
+        Json.format (E.string "he\nllo") =! "\"he\\nllo\""
+        Json.format (E.string "") =! "\"\""
+        Json.format (E.string "푟") =! "\"푟\""
+        Json.format (E.string "\t") =! "\"\\t\""
+        Json.format (E.float 3.5) =! "3.5"
 
-[<Fact>]
-let ``escape is not pathological for non-escaped cases`` () =
-    let testString = String.replicate 2500000 "a"
-    let sw = System.Diagnostics.Stopwatch.StartNew()
-    let escaped = Escaping.escape testString
-    let time = sw.ElapsedMilliseconds
-    printfn "String length: %i, JSON escaped length: %i, Time: %i ms" (String.length testString) (String.length escaped) time
-    Assert.InRange(time, 0L, 5000L)
+    [<Fact>]
+    let ``Json.format returns correct values under other cultures`` () =
+        let culture = Thread.CurrentThread.CurrentCulture
+        Thread.CurrentThread.CurrentCulture <- CultureInfo("fi-FI")
+        Json.format (E.float 3.5) =! "3.5"
+        Thread.CurrentThread.CurrentCulture <- culture
+
+    // [<Fact>]
+    // let ``escape is not pathological for cases with escapes`` () =
+    //     let testObj =
+    //         Json.MakeArray
+    //             [ for i in 1..100000 do
+    //                 yield Json.infer <| "he\nllo\u0006\t 푟 " + string i ]
+    //     let testString = Json.format testObj
+    //     let sw = System.Diagnostics.Stopwatch.StartNew()
+    //     let escaped = Escaping.escape testString
+    //     let time = sw.ElapsedMilliseconds
+    //     printfn "String length: %i, JSON escaped length: %i, Time: %i ms" (String.length testString) (String.length escaped) time
+    //     Assert.InRange(time, 0L, 5000L)
+
+    // [<Fact>]
+    // let ``escape is not pathological for non-escaped cases`` () =
+    //     let testString = String.replicate 2500000 "a"
+    //     let sw = System.Diagnostics.Stopwatch.StartNew()
+    //     let escaped = Escaping.escape testString
+    //     let time = sw.ElapsedMilliseconds
+    //     printfn "String length: %i, JSON escaped length: %i, Time: %i ms" (String.length testString) (String.length escaped) time
+    //     Assert.InRange(time, 0L, 5000L)
 
 (* Mapping
 
    Tests exercising mapping functions between Json and other F#
    data structures. *)
 
-[<Fact>]
-let ``Json.deserialize simple types returns correct values`` () =
-
-    (* Boolean *)
-
-    Json.deserialize (Bool true) =! true
-
-    (* Numeric *)
-
-    Json.deserialize (Number 42M) =! decimal 42
-    Json.deserialize (Number 42M) =! float 42
-    Json.deserialize (Number 42M) =! int 42
-    Json.deserialize (Number 42M) =! int16 42
-    Json.deserialize (Number 42M) =! int64 42
-    Json.deserialize (Number 42M) =! single 42
-    Json.deserialize (Number 42M) =! uint16 42
-    Json.deserialize (Number 42M) =! uint32 42
-    Json.deserialize (Number 42M) =! uint64 42
-
-    (* String *)
-
-    Json.deserialize (String "hello") =! "hello"
-
-    (* DateTime *)
-
-    Json.deserialize (String "Fri, 20 Feb 2015 14:36:21 GMT") =! DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)
-
-    (* DateTimeOffset *)
-
-    Json.deserialize (String "2015-04-15T13:45:55Z") =! DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero)
-
-[<Fact>]
-let ``Json.deserialize complex types returns correct values`` () =
-
-    (* Arrays *)
-
-    Json.deserialize (Array [ String "hello"; String "world"])
-        =! [| "hello"; "world" |]
-
-    (* Lists *)
-
-    Json.deserialize (Array [ String "hello"; String "world"])
-        =! [ "hello"; "world" ]
-
-    (* Maps *)
-
-    Json.deserialize (
-        Object (Map.ofList
-            [ "one", Number 1M
-              "two", Number 2M ]))
-        =! Map.ofList [ "one", 1; "two", 2 ]
-
-    (* Sets *)
-
-    Json.deserialize (Array [ String "one"; String "two" ])
-        =! set [ "one"; "two" ]
-
-    (* Options *)
-
-    Json.deserialize (String "hello")
-        =! Some "hello"
-
-    (* Tuples *)
-
-    Json.deserialize (Array [ String "hello"; Number 42M ])
-        =! ("hello", 42)
-
-    Json.deserialize (Array [ String "hello"; Number 42M; Bool true ])
-        =! ("hello", 42, true)
-
-    Json.deserialize (Array [ String "hello"; Number 42M; Bool true; Number 12M ])
-        =! ("hello", 42, true, 12)
-
-type Test =
-    { String: string
-      Number : int option
-      Values: bool list
-      Json: Json }
-
-    static member FromJson (_: Test) =
-            fun s n v j ->
-                { String = s
-                  Number = n
-                  Values = v
-                  Json = j }
-        <!> Json.read "string"
-        <*> Json.readOrDefault "number" None
-        <*> Json.read "values"
-        <*> Json.read "json"
-
-    static member ToJson (x: Test) =
-            Json.write "string" x.String
-         *> Json.writeUnlessDefault "number" None x.Number
-         *> Json.write "values" x.Values
-         *> Json.write "json" x.Json
-
-let testJson =
-    Object (Map.ofList
-        [ "string", String "hello"
-          "number", Number 42M
-          "values", Array [ Bool true; Bool false ]
-          "json", Object (Map [ "hello", String "world" ]) ])
-
-let testInstance =
-    { String = "hello"
-      Number = Some 42
-      Values = [ true; false ]
-      Json = Object (Map [ "hello", String "world" ]) }
-
-[<Fact>]
-let ``Json.deserialize with custom typed returns correct values`` () =
-    Json.deserialize testJson =! testInstance
-
-let testJsonWithNullOption =
-    Object (Map.ofList
-        [ "string", String "hello"
-          "number", Null ()
-          "values", Array []
-          "json", Object (Map [ "hello", String "world" ]) ])
-
-let testInstanceWithNoneOption =
-    { String = "hello"
-      Number = None
-      Values = [ ]
-      Json = Object (Map [ "hello", String "world" ]) }
-
-[<Fact>]
-let ``Json.deserialize with null option value`` () =
-    Json.deserialize testJsonWithNullOption =! testInstanceWithNoneOption
-
-let testJsonWithMissingOption =
-    Object (Map.ofList
-        [ "string", String "hello"
-          "values", Array []
-          "json", Object (Map [ "hello", String "world" ]) ])
-
-[<Fact>]
-let ``Json.deserialize with missing value`` () =
-    Json.deserialize testJsonWithMissingOption =! testInstanceWithNoneOption
-
-[<Fact>]
-let ``Json.serialize with default value`` () =
-    Json.serialize testInstanceWithNoneOption =! testJsonWithMissingOption
-
-let testJsonWithNoValues =
-    Object (Map.ofList
-        [ "string", String "hello"
-          "number", Number 42M
-          "json", Object (Map [ "hello", String "world" ]) ])
-
-[<Fact>]
-let ``Json.deserialize with invalid value includes missing member name in quotes`` () =
-    let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
-    test <@ match result with Choice2Of2 e -> e.Contains("'values'") | _ -> false @>
-
-[<Fact>]
-let ``Json.deserialize with invalid value includes JSON formatted object`` () =
-    let result : Choice<Test,_> = Json.tryDeserialize testJsonWithNoValues
-    test <@ match result with Choice2Of2 e -> e.EndsWith(Json.formatWith JsonFormattingOptions.SingleLine testJsonWithNoValues) | _ -> false @>
-
-[<Fact>]
-let ``Json.serialize with simple types returns correct values`` () =
-
-    (* Bool *)
-
-    Json.serialize true =! Bool true
-
-    (* Numeric *)
-
-    Json.serialize (decimal 42) =! Number 42M
-    Json.serialize (float 42) =! Number 42M
-    Json.serialize (int 42) =! Number 42M
-    Json.serialize (int16 42) =! Number 42M
-    Json.serialize (int64 42) =! Number 42M
-    Json.serialize (single 42) =! Number 42M
-    Json.serialize (uint16 42) =! Number 42M
-    Json.serialize (uint32 42) =! Number 42M
-    Json.serialize (uint64 42) =! Number 42M
-
-    (* DateTime *)
-
-    Json.serialize (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)) =! String "2015-02-20T14:36:21.0000000Z"
-
-    (* DateTimeOffset *)
-
-    Json.serialize (DateTimeOffset (2015, 2, 20, 14, 36, 21, TimeSpan.Zero)) =! String "2015-02-20T14:36:21.0000000+00:00"
-
-    (* String *)
-
-    Json.serialize "hello" =! String "hello"
-
-[<Fact>]
-let ``Json.serializeWith with simple types returns correct values`` () =
-
-    (* Bool *)
-
-    Json.serializeWith ((fun x -> x.ToString()) >> Json.Optic.set Json.String_) true =! String "True"
-
-    (* Numeric *)
-
-    Json.serializeWith ((fun x -> x / 2M) >> Json.Optic.set Json.Number_) (decimal 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (float 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (int 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (int16 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (int64 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (single 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (uint16 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (uint32 42) =! Number 21M
-    Json.serializeWith (decimal >> (fun x -> x / 2M) >> (Json.Optic.set Json.Number_)) (uint64 42) =! Number 21M
-
-    (* DateTime *)
-
-    Json.serializeWith (fun (x:DateTime) -> Json.Optic.set Json.String_ (x.ToString("yyyy-MM-dd"))) (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)) =! String "2015-02-20"
-
-    (* DateTimeOffset *)
-
-    Json.serializeWith (fun (x:DateTimeOffset) -> Json.Optic.set Json.String_ (x.ToString("yyyy-MM-dd"))) (DateTimeOffset (2015, 2, 20, 14, 36, 21, TimeSpan.Zero)) =! String "2015-02-20"
-
-    (* String *)
-
-    Json.serializeWith (fun (x:string) -> Json.Optic.set Json.String_ (string x.[3..])) "hello" =! String "lo"
-
-[<Fact>]
-let ``Json.serialize with custom types returns correct values`` () =
-    Json.serialize testInstance =! testJson
-
-type TestUnion =
-    | One of string
-    | Two of int * bool
-
-    static member FromJson (_ : TestUnion) =
-      function
-      | Property "one" str as json -> Json.init (One str) json
-      | Property "two" (i, b) as json -> Json.init (Two (i, b)) json
-      | json -> Json.error (sprintf "couldn't deserialise %A to TestUnion" json) json
-
-    static member ToJson (x: TestUnion) =
-        match x with
-        | One (s) -> Json.write "one" s
-        | Two (i, b) -> Json.write "two" (i, b)
-
-let testUnion =
-    Two (42, true)
-
-let testUnionJson =
-    Object (Map.ofList
-        [ "two", Array [ Number 42M; Bool true ] ])
-
-[<Fact>]
-let ``Json.serialize with union types remains tractable`` () =
-    Json.serialize testUnion =! testUnionJson
-
-[<Fact>]
-let ``Json.deserialize with union types remains tractable`` () =
-    Json.deserialize testUnionJson =! testUnion
-
-[<Fact>]
-let ``Json.format escapes object keys correctly`` () =
-    let data = Map [ "\u001f", "abc" ]
-    let serialized = Json.serialize data
-    let formatted = Json.format serialized
-
-    formatted =! """{"\u001F":"abc"}"""
-
-module Json =
-    let ofDayOfWeek (e : DayOfWeek) =
-        e.ToString "G"
-        |> String
-    let toDayOfWeek json =
-        match json with
-        | String s ->
-            match Enum.TryParse<DayOfWeek> s with
-            | true, x -> Value x
-            | _ -> Error (sprintf "Unable to parse %s as a DayOfWeek" s)
-        | _ -> Error (sprintf "Unable to parse %A as a DayOfWeek" json)
-
-type MyDayOfWeekObject =
-    { Bool : bool
-      Day : DayOfWeek }
-    static member ToJson (x:MyDayOfWeekObject) =
-           Json.write "bool" x.Bool
-        *> Json.writeWith Json.ofDayOfWeek "day_of_week" x.Day
-    static member FromJson (_:MyDayOfWeekObject) =
-        fun b d -> { Bool = b; Day = d }
-        <!> Json.read "bool"
-        <*> Json.readWith Json.toDayOfWeek "day_of_week"
-
-let deserializedMonday = { Bool = true; Day = DayOfWeek.Monday }
-let serializedMonday = Object (Map.ofList ["bool", Bool true; "day_of_week", String "Monday"])
-
-[<Fact>]
-let ``Json.readWith allows using a custom deserialization function`` () =
-    Json.deserialize serializedMonday =! deserializedMonday
-
-[<Fact>]
-let ``Json.writeWith allows using a custom serialization function`` () =
-    Json.serialize deserializedMonday =! serializedMonday
+module Serialization =
+    [<Fact>]
+    let ``unit round-trips for example value`` () =
+        D.unit (E.unit ()) =! JPass ()
+
+    [<Fact>]
+    let ``true round-trips for example value`` () =
+        D.bool (E.bool true) =! JPass true
+
+    [<Fact>]
+    let ``false round-trips for example value`` () =
+        D.bool (E.bool false) =! JPass false
+
+    let fortytwo = E.int 42
+
+    [<Fact>]
+    let ``decimal round-trips for example value`` () =
+        D.decimal (E.decimal 42M) =! JPass 42M
+
+    [<Fact>]
+    let ``float round-trips for example value`` () =
+        D.float (E.float 42.0) =! JPass 42.0
+
+    [<Fact>]
+    let ``int round-trips for example value`` () =
+        D.int (E.int 42) =! JPass 42
+
+    [<Fact>]
+    let ``int16 round-trips for example value`` () =
+        D.int16 (E.int16 42s) =! JPass 42s
+
+    [<Fact>]
+    let ``int64 round-trips for example value`` () =
+        D.int64 (E.int64 42L) =! JPass 42L
+
+    [<Fact>]
+    let ``single round-trips for example value`` () =
+        D.single (E.single 42.0f) =! JPass 42.0f
+
+    [<Fact>]
+    let ``uint16 round-trips for example value`` () =
+        D.uint16 (E.uint16 42us) =! JPass 42us
+
+    [<Fact>]
+    let ``uint32 round-trips for example value`` () =
+        D.uint32 (E.uint32 42u) =! JPass 42u
+
+    [<Fact>]
+    let ``uint64 round-trips for example value`` () =
+        D.uint64 (E.uint64 42UL) =! JPass 42UL
+
+    [<Fact>]
+    let ``uint64 on bad value returns expected value`` () =
+        let result = D.uint64 (E.number "-2")
+        match result with
+        | JFail (SingleFailure (DeserializationError (t, err))) when t = typeof<uint64> && err.Message = "Value was either too large or too small for a UInt64." -> ()
+        | JFail f -> failwithf "Did not match expected error: %s" (JsonFailure.summarize f)
+        | _ -> failwithf "Unexpectedly succeeded"
+
+    [<Fact>]
+    let ``string round-trips for example value`` () =
+        D.string (E.string "hello") =! JPass "hello"
+
+    [<Fact>]
+    let ``dateTime round-trips for example value`` () =
+        let testValue = DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc)
+        D.dateTime (E.dateTime testValue) =! JPass testValue
+
+    [<Fact>]
+    let ``dateTimeOffset round-trips for example value`` () =
+        let testValue = DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero)
+        D.dateTimeOffset (E.dateTimeOffset testValue) =! JPass testValue
+
+    [<Fact>]
+    let ``guid round-trips for example value`` () =
+        let guid = Guid.NewGuid()
+        D.guid (E.guid guid) =! JPass guid
+
+    [<Fact>]
+    let ``bytes round-trips for example value`` () =
+        let bytes = "Hello Test!"B
+        D.bytes (E.bytes bytes) =! JPass bytes
+
+module Special =
+    [<Fact>]
+    let ``Parsing reverses order of object elements`` () =
+        test <@ testJson1 |> Json.parse = JPass testJsonObject @>
+
+    [<Fact>]
+    let ``Decoding preserves order of object elements`` () =
+        test <@ testJson1 |> Json.parse |> JsonResult.bind (D.jsonObjectWith Testing.decode) = JPass testObject @>
+
+    [<Fact>]
+    let ``Formatting preserves order of object elements`` () =
+        test <@ testJsonObject |> Json.format = testJson1 @>
+
+    [<Fact>]
+    let ``Encoding preserves order of object elements`` () =
+        test <@ testObject |> E.jsonObjectWith Testing.encode |> Json.format = testJson1 @>
+
+    [<Fact>]
+    let ``Parsing preserves order of array elements`` () =
+        test <@ """["1","2","3"]""" |> Json.parse = JPass (E.list [ E.string "1"; E.string "2"; E.string "3" ]) @>
+
+    [<Fact>]
+    let ``Decoding preserves order of array elements`` () =
+        test <@ """["1","2","3"]""" |> Json.parse |> JsonResult.bind (D.listWith D.string) = JPass ["1"; "2"; "3"] @>
+
+    [<Fact>]
+    let ``Formatting preserves order of array elements`` () =
+        test <@ E.list [ E.string "1"; E.string "2"; E.string "3" ] |> Json.format = """["1","2","3"]""" @>
+
+    [<Fact>]
+    let ``Encoding preserves order of array elements`` () =
+        test <@ ["1";"2";"3"] |> E.listWith E.string |> Json.format = """["1","2","3"]""" @>
+
+module Inference =
+    open Chiron.Inference
+
+    [<Fact>]
+    let ``Inferred round-trip on true returns expected value`` () =
+        Json.decode (Json.encode true) =! JPass true
+
+    [<Fact>]
+    let ``Inferred round-trip on false returns expected value`` () =
+        Json.decode (Json.encode false) =! JPass false
+
+    let fortytwo = Json.encode 42
+
+    [<Fact>]
+    let ``Inferred round-trip to decimal returns expected value`` () =
+        Json.decode fortytwo =! JPass 42M
+
+    [<Fact>]
+    let ``Inferred round-trip to float returns expected value`` () =
+        Json.decode fortytwo =! JPass 42.0
+
+    [<Fact>]
+    let ``Inferred round-trip to int returns expected value`` () =
+        Json.decode fortytwo =! JPass 42
+
+    [<Fact>]
+    let ``Inferred round-trip to int16 returns expected value`` () =
+        Json.decode fortytwo =! JPass 42s
+
+    [<Fact>]
+    let ``Inferred round-trip to int64 returns expected value`` () =
+        Json.decode fortytwo =! JPass 42L
+
+    [<Fact>]
+    let ``Inferred round-trip to single returns expected value`` () =
+        Json.decode fortytwo =! JPass 42.0f
+
+    [<Fact>]
+    let ``Inferred round-trip to uint16 returns expected value`` () =
+        Json.decode fortytwo =! JPass 42us
+
+    [<Fact>]
+    let ``Inferred round-trip to uint32 returns expected value`` () =
+        Json.decode fortytwo =! JPass 42u
+
+    [<Fact>]
+    let ``Inferred round-trip to uint64 returns expected value`` () =
+        Json.decode fortytwo =! JPass 42UL
+
+    [<Fact>]
+    let ``Inferred round-trip to uint64 on bad value returns expected value`` () =
+        let result : JsonResult<uint64> = Json.decode (E.number "-2")
+        match result with
+        | JFail (SingleFailure (DeserializationError (t, err))) when t = typeof<uint64> && err.Message = "Value was either too large or too small for a UInt64." -> ()
+        | JFail f -> failwithf "Did not match expected error: %s" (JsonFailure.summarize f)
+        | _ -> failwithf "Unexpectedly succeeded"
+
+    [<Fact>]
+    let ``Inferred round-trip to string returns expected value`` () =
+        Json.decode (Json.encode "hello") =! JPass "hello"
+
+    [<Fact>]
+    let ``Inferred round-trip to datetime returns expected value`` () =
+        Json.decode (Json.encode "Fri, 20 Feb 2015 14:36:21 GMT") =! JPass (DateTime (2015, 2, 20, 14, 36, 21, DateTimeKind.Utc))
+
+    [<Fact>]
+    let ``Inferred round-trip to datetimeoffset returns expected value`` () =
+        Json.decode (Json.encode "2015-04-15T13:45:55Z") =! JPass (DateTimeOffset (2015, 4, 15, 13, 45, 55, TimeSpan.Zero))
+
+    [<Fact>]
+    let ``Inferred round-trip to guid returns expected value`` () =
+        Json.decode (Json.encode "0123456789ABCDEFFEDCBA9876543210") =! JPass (Guid "0123456789ABCDEFFEDCBA9876543210")
+
+    [<Fact>]
+    let ``Inferred round-trip on array returns correct values`` () =
+        Json.decode (Json.encode [ "hello"; "world" ]) =! JPass [| "hello"; "world" |]
+
+    [<Fact>]
+    let ``Inferred round-trip on list returns correct values`` () =
+        Json.decode (Json.encode [ "hello"; "world" ]) =! JPass [ "hello"; "world" ]
+
+    [<Fact>]
+    let ``Inferred round-trip on None returns correct values`` () =
+        let none : string option = None
+        Json.decode (Json.encode none) =! JPass none
+
+    [<Fact>]
+    let ``Inferred round-trip on None with different types returns correct values`` () =
+        Json.decode (Json.encode (None: int option)) =! JPass (None: string option)
+
+    [<Fact>]
+    let ``Inferred round-trip on map returns correct values`` () =
+        Json.decode (E.propertyList [ "one", E.decimal 1M; "two", E.decimal 2M ]) =! JPass (Map.ofList [ "one", 1; "two", 2 ])
+
+    [<Fact>]
+    let ``Inferred round-trip on set returns correct values`` () =
+        Json.decode (Json.encode [ "one"; "two" ]) =! JPass (set [ "one"; "two" ])
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result returns correct value`` () =
+        Json.decode (Json.encode (Ok "Test" : Result<string, int>)) =! JPass (Ok "Test" : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result returns correct value (no wrapper)`` () =
+        Json.decode (Json.encode ("Test")) =! JPass (Ok "Test" : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result favors Ok over Error (no wrapper)`` () =
+        Json.decode (Json.encode ("Test")) =! JPass (Ok "Test" : Result<string, string>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Error result returns correct value`` () =
+        Json.decode (Json.encode (Error 123 : Result<string, int>)) =! JPass (Error 123 : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Error result returns correct value (no wrapper)`` () =
+        Json.decode (Json.encode (123)) =! JPass (Error 123 : Result<string, int>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Ok result with different Error type returns correct value`` () =
+        Json.decode (Json.encode (Ok "Test" : Result<string, int>)) =! JPass (Ok "Test" : Result<string, bool>)
+
+    [<Fact>]
+    let ``Inferred round-trip on Some returns correct values`` () =
+        Json.decode (Json.encode (Some "hello")) =! JPass (Some "hello")
+
+    [<Fact>]
+    let ``Inferred round-trip on Some returns correct values (no wrapper)`` () =
+        Json.decode (Json.encode "hello") =! JPass (Some "hello")
+
+    [<Fact>]
+    let ``Inferred round-trip on 2-Tuple returns correct values`` () =
+        Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M ]) =! JPass ("hello", 42)
+
+    [<Fact>]
+    let ``Inferred round-trip on 3-Tuple returns correct values`` () =
+        Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true ]) =! JPass ("hello", 42, true)
+
+    [<Fact>]
+    let ``Inferred round-trip on 4-Tuple returns correct values`` () =
+        Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option) ])
+            =! JPass ("hello", 42, true, (None: string option))
+
+    [<Fact>]
+    let ``Inferred round-trip on 5-Tuple returns correct values`` () =
+        Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option); Json.encode -4 ])
+            =! JPass ("hello", 42, true, (None: string option), -4L)
+
+    [<Fact>]
+    let ``Inferred round-trip on 6-Tuple returns correct values`` () =
+        Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option); Json.encode -4; Json.encode "Test" ])
+            =! JPass ("hello", 42, true, (None: string option), -4L, "Test")
+
+    [<Fact>]
+    let ``Inferred round-trip on 7-Tuple returns correct values`` () =
+        Json.decode (Json.encode [ Json.encode "hello"; Json.encode 42M; Json.encode true; Json.encode (None: uint16 option); Json.encode -4; Json.encode "Test"; Json.encode -0.0 ])
+            =! JPass ("hello", 42, true, (None: string option), -4L, "Test", 0M)
+
+module WithTestRecord =
+    open Inference
+    module DI = Inference.Json.Decode
+    module EI = Inference.Json.Encode
+
+    type Test =
+        { String: string
+          Number : int option
+          Values: bool list
+          Json: Json }
+
+    module rec Json =
+        module Mixin =
+            let test =
+                let boolList = E.listWith E.bool
+                fun x jObj ->
+                    jObj
+                    |> EI.required "string" x.String
+                    |> EI.optional "number" x.Number
+                    |> E.required boolList "values" x.Values
+                    |> E.required E.json "json" x.Json
+        module Encode =
+            let test = E.buildWith Mixin.test
+        module Decode =
+            let test =
+                let inner =
+                    (fun s n v j -> { String = s; Number = Option.bind id n; Values = v; Json = j })
+                    <!> DI.required "string"
+                    <*> D.optional (D.optionWith D.int) "number"
+                    <*> D.required (D.listWith D.bool) "values"
+                    <*> D.required D.json "json"
+                D.jsonObject >=> inner
+
+    type Test with
+        static member Mixin (x: Test, jObj: JsonObject) =
+            Json.Mixin.test x jObj
+        static member ToJson (x: Test) =
+            Json.Encode.test x
+        static member FromJson (_: Test) =
+            Json.Decode.test
+
+    let testJson =
+        E.propertyList
+            [ "string", E.string "hello"
+              "number", E.decimal 42M
+              "values", E.listWith E.bool [ true; false ]
+              "json", E.propertyList [ "hello", E.string "world" ] ]
+
+    let testInstance =
+        { String = "hello"
+          Number = Some 42
+          Values = [ true; false ]
+          Json = E.propertyList [ "hello", E.string "world" ] }
+
+    [<Fact>]
+    let ``Json.decode with custom typed returns correct values`` () =
+        Json.decode testJson =! JPass testInstance
+
+    let testJsonWithNullOption =
+        E.propertyList
+            [ "string", E.string "hello"
+              "number", Json.Null
+              "values", E.listWith E.bool []
+              "json", E.propertyList [ "hello", E.string "world" ] ]
+
+    let testInstanceWithNoneOption =
+        { String = "hello"
+          Number = None
+          Values = [ ]
+          Json = E.propertyList [ "hello", E.string "world" ] }
+
+    [<Fact>]
+    let ``Json.decode with null option value`` () =
+        Json.decode testJsonWithNullOption =! JPass testInstanceWithNoneOption
+
+    let testJsonWithMissingOption =
+        E.propertyList
+            [ "string", E.string "hello"
+              "values", E.listWith E.bool []
+              "json", E.propertyList [ "hello", Json.encode "world" ] ]
+
+    [<Fact>]
+    let ``Json.decode with missing value`` () =
+        Json.decode testJsonWithMissingOption =! JPass testInstanceWithNoneOption
+
+    [<Fact>]
+    let ``Json.encode with default value`` () =
+        Json.encode testInstanceWithNoneOption =! testJsonWithMissingOption
+
+    let testJsonWithNoValues =
+        E.propertyList
+            [ "string", E.string "hello"
+              "number", E.decimal 42M
+              "json", E.propertyList [ "hello", E.string "world" ] ]
+
+    [<Fact>]
+    let ``Json.decode with invalid value includes missing member name`` () =
+        let x : JsonResult<Test> = Json.decode testJsonWithNoValues
+        x =! JFail (SingleFailure (PropertyNotFound "values"))
+
+    [<Fact>]
+    let ``Json.encode with custom types returns correct values`` () =
+        Json.encode testInstance =! testJson
+
+module WithRecursion =
+    open Operators
+
+    type Node =
+        | Data of IntTree * IntTree
+
+    and IntTree =
+        | Node of Node
+        | Leaf of int
+
+    module Encode =
+        let treeRef, tree = E.ref<IntTree> ()
+
+        let leafMixin i jObj =
+            E.required E.int "value" i jObj
+
+        let nodeMixin (Data (l,r)) jObj =
+            E.required tree "left" l jObj
+            |> E.required tree "right" r
+
+        let node n =
+            E.buildWith nodeMixin n
+
+        do
+            treeRef := function
+                | Node n -> node n
+                | Leaf i -> E.buildWith leafMixin i
+
+    module Decode =
+        let treeRef, tree = D.ref<Json,IntTree>()
+
+        let decodeLeaf =
+            Leaf
+            <!> D.required D.int "value"
+
+        let decodeNode =
+            (fun l r -> Data (l,r))
+            <!> D.required tree "left"
+            <*> D.required tree "right"
+
+        let decodeTreeNode =
+            Node
+            <!> D.jsonObjectWith decodeNode
+
+        do
+            treeRef :=
+                D.oneOf
+                    [ D.jsonObjectWith decodeLeaf
+                      decodeTreeNode ]
+
+    module Tests =
+        let trivialAsJson =
+            E.propertyList
+                [ "value", E.int 1 ]
+
+        let trivial = Leaf 1
+
+        [<Fact>]
+        let ``encode with trivial value`` () =
+
+            Encode.tree trivial =! trivialAsJson
+
+        [<Fact>]
+        let ``decode to trivial value`` () =
+
+            Decode.tree trivialAsJson =! JPass trivial
+
+        let recursiveAsJson =
+            E.propertyList
+                [ "left",
+                    E.propertyList
+                        [ "left", E.propertyList ["value", E.int 1]
+                          "right", E.propertyList ["value", E.int 2]]
+                  "right",
+                    E.propertyList
+                        [ "left", E.propertyList ["value", E.int 3]
+                          "right", E.propertyList ["value", E.int 4]]]
+
+        let recursive =
+            Node (Data (Node (Data (Leaf 1, Leaf 2)), Node (Data (Leaf 3, Leaf 4))))
+
+        [<Fact>]
+        let ``encode with recursion`` () =
+            Encode.tree recursive =! recursiveAsJson
+
+        [<Fact>]
+        let ``decode with recursion`` () =
+
+            Decode.tree recursiveAsJson =! JPass recursive
+
+module WithTestUnion =
+    open Operators
+    module EI = Inference.Json.Encode
+    module DI = Inference.Json.Decode
+
+    type TestUnion =
+        | One of string
+        | Two of int * bool
+
+    module TestUnion =
+        let mkTwo i b = Two (i, b)
+        let toJsonOne s =
+            E.string s
+        let encodeTwo (i, b) jObj =
+            EI.required "two" i jObj
+            |> EI.required "twoble" b
+        let fromJsonOne json =
+            D.string json
+            |> JsonResult.map One
+        let decodeTwo =
+            mkTwo
+            <!> DI.required "two"
+            <*> DI.required "twoble"
+        let toJson = function
+            | One s -> toJsonOne s
+            | Two (i, b) -> E.buildWith encodeTwo (i, b)
+        let fromJson =
+            D.oneOf
+                [ fromJsonOne
+                  D.jsonObject >=> decodeTwo ]
+
+    type TestUnion with
+        static member ToJson (x: TestUnion) =
+            TestUnion.toJson x
+        static member FromJson (_ : TestUnion, json: Json) =
+            TestUnion.fromJson json
+
+// let testUnion =
+//     Two (42, true)
+
+// let testUnionJson =
+//     Json.infer
+//         [ "two", Json.infer [ Json.infer 42M; Json.infer true ] ]
+
+// [<Fact>]
+// let ``Json.serialize with union types remains tractable`` () =
+//     Json.serialize testUnion =! testUnionJson
+
+// [<Fact>]
+// let ``Json.decode with union types remains tractable`` () =
+//     Json.decode testUnionJson =! JPass testUnion
+
+// [<Fact>]
+// let ``Json.format escapes object keys correctly`` () =
+//     let data = Map [ "\u001f", "abc" ]
+//     let serialized = Json.serialize data
+//     let formatted = Json.format serialized
+
+//     formatted =! """{"\u001F":"abc"}"""
+
+// module Json =
+//     let ofDayOfWeek (e : DayOfWeek) =
+//         e.ToString "G"
+//         |> Json.infer
+//     let toDayOfWeek : JsonReader<DayOfWeek> =
+//         Chiron.Optic.get Json.Optics.String_
+//         >> Result.bind (JsonResult.withThrowingParser (fun s -> Enum.Parse(typeof<DayOfWeek>, s) :?> DayOfWeek))
+
+// type MyDayOfWeekObject =
+//     { Bool : bool
+//       Day : DayOfWeek }
+//     static member ToJson (x:MyDayOfWeekObject) =
+//         JsonObject.empty
+//         |> JsonObject.write "bool" x.Bool
+//         |> JsonObject.writeWith Json.ofDayOfWeek "day_of_week" x.Day
+//         |> JsonObject.toJson
+//     static member FromJson (_:MyDayOfWeekObject) =
+//         D.jsonObject >=>
+//         (fun b d -> { Bool = b; Day = d }
+//         <!> JsonObject.read "bool"
+//         <*> JsonObject.readWith Json.toDayOfWeek "day_of_week")
+
+// let deserializedMonday = { Bool = true; Day = DayOfWeek.Monday }
+// let serializedMonday = Json.infer ["bool", Json.infer true; "day_of_week", Json.infer "Monday"]
+
+// [<Fact>]
+// let ``Json.readWith allows using a custom deserialization function`` () =
+//     Json.decode serializedMonday =! JPass deserializedMonday
+
+// [<Fact>]
+// let ``Json.writeWith allows using a custom serialization function`` () =
+//     Json.serialize deserializedMonday =! serializedMonday
+
+
+// // let testWriter x = jsonWriter {
+// //     do! JsonObject.write "bool" x.Bool
+// //     do! JsonObject.writeWith Json.ofDayOfWeek "day_of_week" x.Day
+// // }
+// // [<Fact>]
+// // let ``Json.writeWith allows using a custom serialization function`` () =
+// //     testWriter deserializedMonday =! serializedMonday
+
+// [<Fact>]
+// let ``Encode works?`` () =
+//     let encode = Json.encode
+//     test <@ testJsonObject = encode testObject @>
+
+module WithComplexType =
+    type ComplexType =
+        { a: int list option
+          b: ChildType
+          c: MixinType }
+    and ChildType =
+        { d: WrapperType
+          e: byte array }
+    and MixinType =
+        { f: int list }
+    and [<Struct>] WrapperType =
+        | Sad of string
+
+    // module Encoders =
+    //     module WrapperType =
+    //         let toJson (Sad x) = Json.ofString x
+    //         let fromJson = Optic.get Json.Optics.String_ >> Result.map Sad
+    //     module MixinType =
+    //         let mk f = { f = f }
+    //         let encode x = JsonObject.add "f" (Json.ofListWith Json.ofInt32 x.f)
+    //         let decode = mk <!> JsonObject.read "f"
+    //     module ChildType =
+    //         let mk d e = { d = d; e = e }
+    //         let encode x =
+    //             JsonObject.add "d" (WrapperType.toJson x.d)
+    //          >> JsonObject.add "e" (Json.ofBytes x.e)
+    //         let decode =
+    //             mk
+    //             <!> JsonObject.readWith WrapperType.fromJson "d"
+    //             <*> JsonObject.read "e"
+    //     module ComplexType =
+    //         let mk a b c = { a = a; b = b; c = c }
+    //         let encode x =
+    //             JsonObject.writeOptWith (Json.ofListWith Json.ofInt32) "a" x.a
+    //          >> JsonObject.writeObjWith (ChildType.encode) "b" x.b
+    //          >> JsonObject.mixinObj (MixinType.encode) x.c
+    //         let decode =
+    //             mk
+    //             <!> JsonObject.readOpt "a"
+    //             <*> (JsonObject.tryGetOrFail "b" >> Result.bind (Optic.get Json.Optics.Object_) >> Result.bind ChildType.decode)
+    //             <*> MixinType.decode
+
+    // type ComplexType with
+    //     static member Encode x = Encoders.ComplexType.encode x
+    //     static member Decode (_:ComplexType) = Encoders.ComplexType.decode
+
+    // type ChildType with
+    //     static member Encode x = Encoders.ChildType.encode x
+    //     static member Decode (_:ChildType) = Encoders.ChildType.decode
+
+    // type MixinType with
+    //     static member Encode x = Encoders.MixinType.encode x
+    //     static member Decode (_:MixinType) = Encoders.MixinType.decode
+
+    // type WrapperType with
+    //     static member ToJson x = Encoders.WrapperType.toJson x
+    //     static member FromJson (_:WrapperType) = Encoders.WrapperType.fromJson
+
+    // let thing = """{"f":[1,2,3,4],"a":[2,4,6,8],"b":{"e":"SGVsbG8gd29ybGQh","d":"winter"}}"""
+    // let thing2 = """{"a":[2,4,6,8],"b":{"d":"winter","e":"SGVsbG8gd29ybGQh"},"f":[1,2,3,4]}"""
+    // let expected =
+    //     { a = Some [ 2; 4; 6; 8 ]
+    //       b = { d = Sad "winter"
+    //             e = "Hello world!" |> System.Text.Encoding.UTF8.GetBytes }
+    //       c = { f = [ 1; 2; 3; 4 ] } }
+
+    // [<Fact>]
+    // let ``complexx`` () =
+    //     test <@ JPass expected = (Json.parseOrThrow thing |> Optic.get Json.Optics.Object_ |> Result.bind Encoders.ComplexType.decode) @>
+    // [<Fact>]
+    // let ``complexy`` () =
+    //     test <@ thing2 = (JsonObject.build Encoders.ComplexType.encode expected |> Json.format) @>

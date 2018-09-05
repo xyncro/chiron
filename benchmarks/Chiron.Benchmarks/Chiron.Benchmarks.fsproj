@@ -1,0 +1,29 @@
+<Project Sdk="FSharp.NET.Sdk;Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp1.1</TargetFramework>
+    <DebugType>none</DebugType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Prelude.fs" />
+    <Compile Include="ParsingAndFormatting.fs" />
+    <Compile Include="WriteString.fs" />
+    <Compile Include="Samples.fs" />
+    <Compile Include="SchemaDef.fs" />
+    <Compile Include="Encode.fs" />
+    <Compile Include="Decode.fs" />
+    <Compile Include="Main.fs" />
+    <EmbeddedResource Include="**\*.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.NET.Sdk" Version="1.*" PrivateAssets="All" />
+    <PackageReference Include="FSharp.Core" Version="4.*" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.10.*" />
+    <PackageReference Include="Newtonsoft.Json" Version="9.*" />
+    <!--PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.10.2" /-->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Chiron\Chiron.fsproj" />
+  </ItemGroup>
+</Project>
