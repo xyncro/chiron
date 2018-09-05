@@ -1,17 +1,14 @@
-<Project Sdk="FSharp.NET.Sdk;Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;netstandard1.6</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net45</TargetFrameworks>
     <VersionPrefix>7.0.0</VersionPrefix>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
-  <Import Project="..\..\nuget.props" />
   <ItemGroup>
     <!--<Compile Include="Chiron.fsi" />-->
     <Compile Include="Chiron.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="FSharp.NET.Sdk" Version="1.*" PrivateAssets="All" />
-    <PackageReference Include="FSharp.Core" Version="4.1.0" />
     <PackageReference Include="SourceLink.Create.CommandLine" Version="2.7.3" PrivateAssets="All" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETStandard'">
