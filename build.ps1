@@ -17,4 +17,4 @@ if ($env:appveyor){
 
 dotnet build -c Release Chiron.sln /p:Version=$version$versionSuffix /p:ci=true
 dotnet test --no-build -c Release tests/Chiron.Tests/Chiron.Tests.fsproj
-dotnet pack --no-build -c Release src/Chiron /p:Version=$version$versionSuffix
+dotnet pack --no-build -c Release src/Chiron /p:Version=$version$versionSuffix -o $psscriptroot/bin
