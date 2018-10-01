@@ -24,9 +24,9 @@ script:
   - dotnet --info
   - dotnet restore
   - dotnet build -c Release
-  - dotnet test -c Release tests\Chiron.Tests\Chiron.Tests.fsproj
-  - dotnet pack -c Release
-  - dotnet benchmarks\Chiron.Benchmarks\bin\Release\netcoreapp2.0\Chiron.Benchmarks.dll --class SwaggerSchema
+  - dotnet test --no-build -c Release tests\Chiron.Tests\Chiron.Tests.fsproj
+  - dotnet pack --no-build -c Release src/Chiron
+  #- dotnet benchmarks\Chiron.Benchmarks\bin\Release\netcoreapp2.0\Chiron.Benchmarks.dll --class SwaggerSchema
 
 branches:
   except:
