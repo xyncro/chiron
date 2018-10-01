@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net452</TargetFrameworks>
-    <VersionPrefix>7.0.0</VersionPrefix>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
@@ -11,6 +10,5 @@
   <ItemGroup>
     <PackageReference Include="Aether" Version="8.2.0" />
     <PackageReference Include="FParsec" Version="1.0.3" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0-*" PrivateAssets="All" />
   </ItemGroup>
 </Project>
