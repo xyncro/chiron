@@ -879,7 +879,7 @@ module Serialization =
                 | Some a -> buildWith a jObj
                 | None -> jObj
 
-            let ref (): JsonEncoder<'a> ref * JsonEncoder<'a> =
+            let ref<'a> (): JsonEncoder<'a> ref * JsonEncoder<'a> =
                 let innerRef = ref (Unchecked.defaultof<JsonEncoder<'a>>)
                 innerRef, (fun a -> (!innerRef) a)
 
@@ -1152,7 +1152,7 @@ module Serialization =
                     Encode.jsonObject jObj
                     |> decode
 
-            let ref (): Decoder<'s,'a> ref * Decoder<'s,'a> =
+            let ref<'s, 'a> (): Decoder<'s,'a> ref * Decoder<'s,'a> =
                 let innerRef = ref (Unchecked.defaultof<Decoder<'s,'a>>)
                 innerRef, (fun s -> (!innerRef) s)
 

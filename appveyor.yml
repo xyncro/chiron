@@ -1,17 +1,9 @@
-version: 7.0.0-aci-{build}
-
 image: Visual Studio 2017
-
 build_script:
-  - ps: dotnet --info
-  - ps: dotnet restore
-  - ps: dotnet build -c Release --version-suffix "aci-${env:APPVEYOR_BUILD_NUMBER}"
-  - ps: dotnet test -c Release tests\Chiron.Tests\Chiron.Tests.fsproj
-  - ps: dotnet pack -c Release --version-suffix "aci-${env:APPVEYOR_BUILD_NUMBER}"
-  - ps: dotnet benchmarks\Chiron.Benchmarks\bin\Release\netcoreapp2.0\Chiron.Benchmarks.dll --class SwaggerSchema
-
+  - ps: |
+      .\build.ps1
+      if ($lastexitcode -ne 0){ exit $lastexitcode }
 test: off
-
 artifacts:
-  - path: '**\*.nupkg'
+  - path: bin\*.nupkg
   - path: '**\BenchmarkDotNet.Artifacts\**\*.*'

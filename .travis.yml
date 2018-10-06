@@ -1,22 +1,24 @@
 language: csharp
 
-mono: 5.2.0
-dotnet: 2.0.0
+dotnet: 2.1.402
+
+mono:
+- 5.2.0
 
 install:
-  - mozroots --import --sync
-  # workaround for missing .net 4.5 targing pack
-  - export FrameworkPathOverride=$(dirname $(which mono))/../lib/mono/4.5/
+- mozroots --import --sync
+# workaround for missing .net 4.5 targing pack
+- export FrameworkPathOverride=$(dirname $(which mono))/../lib/mono/4.5/
 
 matrix:
-  include:
+    include:
     - os: linux # Ubuntu 14.04
       dist: trusty
       sudo: required
-      dotnet: 2.0.0
+      dotnet: 2.1.402
     - os: osx # OSX 10.12
       osx_image: xcode9.1
-      dotnet: 2.0.0
+      dotnet: 2.1.402
       dist: trusty
       sudo: required
 
@@ -24,10 +26,11 @@ script:
   - dotnet --info
   - dotnet restore
   - dotnet build -c Release
-  - dotnet test -c Release tests\Chiron.Tests\Chiron.Tests.fsproj
-  - dotnet pack -c Release
-  - dotnet benchmarks\Chiron.Benchmarks\bin\Release\netcoreapp2.0\Chiron.Benchmarks.dll --class SwaggerSchema
+  - dotnet test --no-build -c Release tests/Chiron.Tests/Chiron.Tests.fsproj
+  - dotnet pack --no-build -c Release src/Chiron
+  #- dotnet benchmarks\Chiron.Benchmarks\bin\Release\netcoreapp2.0\Chiron.Benchmarks.dll --class SwaggerSchema
 
 branches:
   except:
     - gh-pages
+
