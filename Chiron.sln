@@ -4,7 +4,7 @@ VisualStudioVersion = 15.0.26124.0
 MinimumVisualStudioVersion = 15.0.26124.0
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{1A4266E5-5717-4405-ACD6-993DE3C8DE6C}"
 ProjectSection(SolutionItems) = preProject
-	Directory.Build.props.xml = Directory.Build.props.xml
+	src\Directory.Build.props = src\Directory.Build.props
 EndProjectSection
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Chiron", "src\Chiron\Chiron.fsproj", "{4393FF1A-1C77-4087-9A5A-D89FB13480A6}"
