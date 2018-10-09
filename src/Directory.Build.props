@@ -8,6 +8,7 @@
     <Authors>Andrew Cherry, Michael Newton, Henrik Feldt, Marcus Griep, Tony Williams</Authors>
     <PackageLicenseUrl>https://opensource.org/licenses/MIT</PackageLicenseUrl>
     <PackageTags>functional, json, f#, optics</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>  
 
     <!-- SourceLink related properties https://github.com/dotnet/SourceLink#using-sourcelink -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
