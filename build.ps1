@@ -1,4 +1,5 @@
-$version = '6.3.0' # the version under development, update after a release
+[xml]$doc = Get-Content .\src\Directory.Build.props
+$version = $doc.Project.PropertyGroup.VersionPrefix # the version under development, update after a release
 $versionSuffix = '-build.0' # manually incremented for local builds
 
 function isVersionTag($tag){
