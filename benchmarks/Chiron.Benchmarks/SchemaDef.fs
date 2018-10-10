@@ -371,7 +371,7 @@ open BenchmarkDotNet.Attributes
 
 [<Config(typeof<CoreConfig>)>]
 type SwaggerSchema() =
-    [<Setup>]
+    [<GlobalSetup>]
     member __.Setup() =
         // printfn "%A" parsedSchema
         // printfn "%s" (parsedSchema |> E.jsonSchemaDefinition |> Json.format)

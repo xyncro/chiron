@@ -19,4 +19,4 @@ if ($env:appveyor){
 dotnet build -c Release Chiron.sln /p:Version=$version$versionSuffix
 dotnet test --no-build -c Release tests/Chiron.Tests/Chiron.Tests.fsproj
 dotnet pack --no-build -c Release src/Chiron /p:Version=$version$versionSuffix -o $psscriptroot/bin
-# dotnet benchmarks\Chiron.Benchmarks\bin\Release\netcoreapp2.0\Chiron.Benchmarks.dll --class SwaggerSchema
+dotnet benchmarks/Chiron.Benchmarks/bin/Release/netcoreapp2.1/Chiron.Benchmarks.dll --class SwaggerSchema
