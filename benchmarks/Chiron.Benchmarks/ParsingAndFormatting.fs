@@ -38,7 +38,7 @@ module Bench =
 type ParseTest () =
     let mutable jsonString = "<null>"
 
-    [<Setup>]
+    [<GlobalSetup>]
     member this.Setup () =
         jsonString <- loadJsonResourceAsString this.Name
 
@@ -53,7 +53,7 @@ type ParseTest () =
 type FormatTest () =
     let mutable jsonN = Chiron.Json.Null
 
-    [<Setup>]
+    [<GlobalSetup>]
     member this.Setup () =
         jsonN <-
             loadJsonResourceAsString this.Name
@@ -75,7 +75,7 @@ type FormatVariableLengthStrings () =
     [<Params(10, 100, 1000, 10000, 100000)>]
     member val public strlen = 1 with get, set
 
-    [<Setup>]
+    [<GlobalSetup>]
     member x.Setup () =
         let simple = String.replicate x.strlen "a"
         simpleJson <- Chiron.Json.String simple
